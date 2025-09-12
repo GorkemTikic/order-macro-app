@@ -1,61 +1,84 @@
 import React, { useState } from "react";
-import { getTriggerMinuteCandles, getRangeHighLow } from "../pricing";
+import { getTriggerMinuteCandles, getRangeCandles } from "../pricing";
 
 export default function PriceLookup() {
   const [symbol, setSymbol] = useState("ETHUSDT");
   const [singleTime, setSingleTime] = useState("");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null);
-  const [rangeResult, setRangeResult] = useState(null);
+  const [result, setResult] = useState("");
 
   async function handleSingleLookup() {
+    if (!singleTime) {
+      setResult("Please enter a date/time.");
+      return;
+    }
     setLoading(true);
-    setError("");
-    setResult(null);
     try {
-      if (!symbol || !singleTime) throw new Error("Symbol and Date/Time required");
-
       const { mark, last } = await getTriggerMinuteCandles(symbol, singleTime);
-      setResult({
-        symbol,
-        time: singleTime,
-        mark,
-        last,
-      });
+      const msg = `
+${singleTime} UTC+0 = At this date and time, the Mark Price and Last Price details are:
+
+**Mark Price**
+Opening: ${mark?.open ?? "N/A"}
+Highest: ${mark?.high ?? "N/A"}
+Lowest: ${mark?.low ?? "N/A"}
+Closing: ${mark?.close ?? "N/A"}
+
+**Last Price**
+Opening: ${last?.open ?? "N/A"}
+Highest: ${last?.high ?? "N/A"}
+Lowest: ${last?.low ?? "N/A"}
+Closing: ${last?.close ?? "N/A"}
+      `;
+      setResult(msg.trim());
     } catch (e) {
-      setError(e.message);
+      setResult("Error: " + e.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleRangeLookup() {
+    if (!rangeStart || !rangeEnd) {
+      setResult("Please enter start and end datetime.");
+      return;
+    }
     setLoading(true);
-    setError("");
-    setRangeResult(null);
     try {
-      if (!symbol || !rangeFrom || !rangeTo)
-        throw new Error("Symbol and From/To required");
+      const { highest, lowest } = await getRangeCandles(
+        symbol,
+        rangeStart,
+        rangeEnd
+      );
+      const msg = `
+When we check the ${symbol} Price Chart
 
-      const data = await getRangeHighLow(symbol, rangeFrom, rangeTo);
-      setRangeResult({ symbol, from: rangeFrom, to: rangeTo, ...data });
+From: ${rangeStart}
+To: ${rangeEnd}
+
+${highest.mark.time} > At this date and time, the highest Mark Price ${highest.mark.value} was reached.
+${highest.last.time} > At this date and time, the highest Last Price ${highest.last.value} was reached.
+
+${lowest.mark.time} > At this date and time, the lowest Mark Price ${lowest.mark.value} was reached.
+${lowest.last.time} > At this date and time, the lowest Last Price ${lowest.last.value} was reached.
+      `;
+      setResult(msg.trim());
     } catch (e) {
-      setError(e.message);
+      setResult("Error: " + e.message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="panel" style={{ marginTop: 20 }}>
+    <div className="panel">
       <h2 style={{ marginBottom: 12 }}>Price Lookup Tool</h2>
 
-      {/* --- Single Time Lookup --- */}
-      <div className="grid">
-        <div className="col-4">
+      {/* Header */}
+      <div className="lookup-header">
+        <div className="field">
           <label className="label">Symbol</label>
           <input
             className="input"
@@ -64,7 +87,7 @@ export default function PriceLookup() {
             placeholder="ETHUSDT"
           />
         </div>
-        <div className="col-8">
+        <div className="field">
           <label className="label">Date/Time (UTC, YYYY-MM-DD HH:MM:SS)</label>
           <input
             className="input"
@@ -73,105 +96,60 @@ export default function PriceLookup() {
             placeholder="2025-09-11 12:30:18"
           />
         </div>
-        <div className="col-12">
-          <button className="btn" onClick={handleSingleLookup} disabled={loading}>
-            {loading ? "Loading..." : "Lookup Single Minute"}
-          </button>
-        </div>
       </div>
 
-      {result && (
-        <div className="grid" style={{ marginTop: 20 }}>
-          <div className="col-12">
-            <h3>
-              {result.time} UTC+0 = At this date and time, the Mark Price and Last
-              Price details are:
-            </h3>
-
-            <div className="price-box mark">
-              <h3>Mark Price</h3>
-              <p>Opening: {result.mark?.open ?? "N/A"}</p>
-              <p>Highest: {result.mark?.high ?? "N/A"}</p>
-              <p>Lowest: {result.mark?.low ?? "N/A"}</p>
-              <p>Closing: {result.mark?.close ?? "N/A"}</p>
-            </div>
-
-            <div className="price-box last">
-              <h3>Last Price</h3>
-              <p>Opening: {result.last?.open ?? "N/A"}</p>
-              <p>Highest: {result.last?.high ?? "N/A"}</p>
-              <p>Lowest: {result.last?.low ?? "N/A"}</p>
-              <p>Closing: {result.last?.close ?? "N/A"}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="lookup-actions">
+        <button
+          className="btn"
+          onClick={handleSingleLookup}
+          disabled={loading}
+          style={{ width: "100%" }}
+        >
+          {loading ? "Loading..." : "Lookup Single Minute"}
+        </button>
+      </div>
 
       <div className="hr" />
 
-      {/* --- Range Lookup --- */}
-      <h3>Range High/Low</h3>
-      <div className="grid">
-        <div className="col-6">
+      {/* Range Lookup */}
+      <h3 style={{ marginBottom: 10 }}>Range High/Low</h3>
+      <div className="lookup-header">
+        <div className="field">
           <label className="label">From (UTC)</label>
           <input
             className="input"
-            value={rangeFrom}
-            onChange={(e) => setRangeFrom(e.target.value)}
+            value={rangeStart}
+            onChange={(e) => setRangeStart(e.target.value)}
             placeholder="2025-09-11 06:53:08"
           />
         </div>
-        <div className="col-6">
+        <div className="field">
           <label className="label">To (UTC)</label>
           <input
             className="input"
-            value={rangeTo}
-            onChange={(e) => setRangeTo(e.target.value)}
+            value={rangeEnd}
+            onChange={(e) => setRangeEnd(e.target.value)}
             placeholder="2025-09-11 12:30:18"
           />
         </div>
-        <div className="col-12">
-          <button className="btn" onClick={handleRangeLookup} disabled={loading}>
-            {loading ? "Loading..." : "Lookup Range"}
-          </button>
-        </div>
       </div>
 
-      {rangeResult && (
-        <div className="grid" style={{ marginTop: 20 }}>
-          <div className="col-12">
-            <h3>
-              When we check the {rangeResult.symbol} Price Chart <br />
-              From: {rangeResult.from} To: {rangeResult.to}
-            </h3>
+      <div className="lookup-actions">
+        <button
+          className="btn"
+          onClick={handleRangeLookup}
+          disabled={loading}
+          style={{ width: "100%" }}
+        >
+          {loading ? "Loading..." : "Lookup Range"}
+        </button>
+      </div>
 
-            <div className="price-box mark">
-              <h3>Mark Price</h3>
-              <p>
-                {rangeResult.markHighTime} = Highest Mark Price{" "}
-                {rangeResult.markHigh}
-              </p>
-              <p>
-                {rangeResult.markLowTime} = Lowest Mark Price {rangeResult.markLow}
-              </p>
-            </div>
+      <div className="hr" />
 
-            <div className="price-box last">
-              <h3>Last Price</h3>
-              <p>
-                {rangeResult.lastHighTime} = Highest Last Price{" "}
-                {rangeResult.lastHigh}
-              </p>
-              <p>
-                {rangeResult.lastLowTime} = Lowest Last Price{" "}
-                {rangeResult.lastLow}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {error && <div className="helper" style={{ color: "red" }}>{error}</div>}
+      {/* Result */}
+      <label className="label">Result</label>
+      <textarea className="textarea" value={result} readOnly />
     </div>
   );
 }
