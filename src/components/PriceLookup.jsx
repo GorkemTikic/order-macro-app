@@ -1,109 +1,70 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { getTriggerMinuteCandles, getRangeHighLow } from "../pricing";
 
-export default function PriceLookup() {
+function PriceLookup() {
   const [symbol, setSymbol] = useState("ETHUSDT");
-  const [singleTime, setSingleTime] = useState("");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
+  const [datetime, setDatetime] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [result, setResult] = useState("");
-  const outRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
   async function handleSingle() {
-    setResult("");
+    setLoading(true);
     try {
-      const { mark, last } = await getTriggerMinuteCandles(symbol, singleTime);
-      const msg = `${singleTime} UTC+0 = At this date and time, the Mark Price and Last Price details are:
-
-**Mark Price:**
-Opening: ${mark.open}
-Highest: ${mark.high}
-Lowest: ${mark.low}
-Closing: ${mark.close}
-
-**Last Price:**
-Opening: ${last.open}
-Highest: ${last.high}
-Lowest: ${last.low}
-Closing: ${last.close}`;
+      const { mark, last } = await getTriggerMinuteCandles(symbol, datetime);
+      const msg = `${datetime} UTC+0 = At this date and time, the Mark Price and Last Price details are:\n
+**Mark Price:**\nOpening: ${mark.open}\nHighest: ${mark.high}\nLowest: ${mark.low}\nClosing: ${mark.close}\n
+**Last Price:**\nOpening: ${last.open}\nHighest: ${last.high}\nLowest: ${last.low}\nClosing: ${last.close}`;
       setResult(msg);
-      setTimeout(() => outRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    } catch (e) {
-      setResult("Error: " + e.message);
+    } catch (err) {
+      setResult("Error: " + err.message);
     }
+    setLoading(false);
   }
 
   async function handleRange() {
-    setResult("");
+    setLoading(true);
     try {
-      const { highestMark, lowestMark, highestLast, lowestLast } = await getRangeHighLow(symbol, rangeFrom, rangeTo);
-      const msg = `When we check the ${symbol} Price Chart
-
-From: ${rangeFrom}
-To: ${rangeTo}
-
-${highestMark.time} > At this date and time, the highest Mark Price ${highestMark.price} was reached.
-${highestLast.time} > At this date and time, the highest Last Price ${highestLast.price} was reached.
-
-${lowestMark.time} > At this date and time, the lowest Mark Price ${lowestMark.price} was reached.
-${lowestLast.time} > At this date and time, the lowest Last Price ${lowestLast.price} was reached.`;
+      const data = await getRangeHighLow(symbol, from, to);
+      const msg = `When we check the ${symbol} Price Chart\nFrom: ${from}\nTo: ${to}\n\n` +
+      `${data.highestMark.time} > At this date and time, the highest Mark Price ${data.highestMark.price} was reached.\n` +
+      `${data.highestLast.time} > At this date and time, the highest Last Price ${data.highestLast.price} was reached.\n\n` +
+      `${data.lowestMark.time} > At this date and time, the lowest Mark Price ${data.lowestMark.price} was reached.\n` +
+      `${data.lowestLast.time} > At this date and time, the lowest Last Price ${data.lowestLast.price} was reached.`;
       setResult(msg);
-      setTimeout(() => outRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    } catch (e) {
-      setResult("Error: " + e.message);
+    } catch (err) {
+      setResult("Error: " + err.message);
     }
-  }
-
-  async function handleCopy() {
-    if (!result) return;
-    await navigator.clipboard.writeText(result);
-    const btn = document.getElementById("copy-btn-lookup");
-    const old = btn.textContent;
-    btn.textContent = "Copied!";
-    setTimeout(() => (btn.textContent = old), 1000);
+    setLoading(false);
   }
 
   return (
     <div className="panel">
-      <h3>Single Candle Lookup</h3>
+      <h2>Price Lookup</h2>
       <div className="grid">
         <div className="col-6">
-          <label className="label">Symbol</label>
-          <input className="input" value={symbol} onChange={e=>setSymbol(e.target.value.toUpperCase())}/>
-        </div>
-        <div className="col-6">
-          <label className="label">DateTime (UTC)</label>
-          <input className="input" value={singleTime} onChange={e=>setSingleTime(e.target.value)} placeholder="YYYY-MM-DD HH:MM:SS"/>
+          <label>Symbol</label>
+          <input className="input" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())}/>
         </div>
         <div className="col-12">
-          <button className="btn" onClick={handleSingle}>Fetch Candle</button>
-        </div>
-      </div>
-
-      <h3 style={{marginTop:20}}>Range High/Low Lookup</h3>
-      <div className="grid">
-        <div className="col-6">
-          <label className="label">From (UTC)</label>
-          <input className="input" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)} placeholder="YYYY-MM-DD HH:MM:SS"/>
-        </div>
-        <div className="col-6">
-          <label className="label">To (UTC)</label>
-          <input className="input" value={rangeTo} onChange={e=>setRangeTo(e.target.value)} placeholder="YYYY-MM-DD HH:MM:SS"/>
+          <label>Single Candle (UTC YYYY-MM-DD HH:MM:SS)</label>
+          <input className="input" value={datetime} onChange={e => setDatetime(e.target.value)}/>
+          <button className="btn" onClick={handleSingle} disabled={loading}>Fetch Single Candle</button>
         </div>
         <div className="col-12">
-          <button className="btn" onClick={handleRange}>Fetch Range</button>
+          <label>Range High/Low (UTC)</label>
+          <input className="input" placeholder="From" value={from} onChange={e => setFrom(e.target.value)}/>
+          <input className="input" placeholder="To" value={to} onChange={e => setTo(e.target.value)}/>
+          <button className="btn" onClick={handleRange} disabled={loading}>Fetch Range High/Low</button>
         </div>
-      </div>
-
-      <div ref={outRef} className="grid" style={{marginTop: 20}}>
         <div className="col-12">
-          <label className="label">Result</label>
+          <label>Result</label>
           <textarea className="textarea" value={result} readOnly />
-        </div>
-        <div className="col-12">
-          <button className="btn secondary" id="copy-btn-lookup" onClick={handleCopy} disabled={!result}>Copy</button>
         </div>
       </div>
     </div>
   );
 }
+
+export default PriceLookup;
