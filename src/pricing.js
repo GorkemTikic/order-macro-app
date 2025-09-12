@@ -84,3 +84,25 @@ export async function getRangeHighLow(symbol, fromStr, toStr) {
     lowestLast: lastStats.lowest
   };
 }
+
+// 🔹 Yeni: 1 saniyelik Last Price OHLC (aggTrades ile)
+export async function getLastPrice1s(symbol, datetimeStr) {
+  const start = Date.parse(datetimeStr + "Z"); // UTC timestamp
+  const end = start + 1000; // 1 saniye sonrası
+
+  const url = `${PROXY}https://fapi.binance.com/fapi/v1/aggTrades?symbol=${symbol}&startTime=${start}&endTime=${end}&limit=1000`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`aggTrades fetch failed ${res.status}`);
+  const trades = await res.json();
+
+  if (!trades.length) return null;
+
+  const prices = trades.map(t => parseFloat(t.p));
+  return {
+    open: prices[0],
+    high: Math.max(...prices),
+    low: Math.min(...prices),
+    close: prices[prices.length - 1],
+    count: trades.length
+  };
+}
