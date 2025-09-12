@@ -1,61 +1,86 @@
-// pricing.js
-// Pure frontend: fetch Mark/Last OHLC (1m) directly from Binance public API.
+const PROXY = ""; // CORS sorunu olursa buraya kendi proxy URL’ni koy
 
-const BASE = "https://fapi.binance.com";
-const PROXY = ""; 
-// If your region/host blocks Binance or you hit CORS/451, set:
-// const PROXY = "https://your-cors-proxy.example.com/";  // enterprise/internal recommended
-
-const api = (path, params) => {
-  const url = new URL((PROXY || "") + BASE + path);
-  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-  return url.toString();
-};
-
-export function msMinuteStartUTC(utcStr) {
-  // utcStr = "YYYY-MM-DD HH:MM:SS"
-  const [date, time] = utcStr.trim().split(" ");
-  const [Y, M, D] = date.split("-").map(Number);
-  const [h, m, s] = time.split(":").map(Number);
-  const ms = Date.UTC(Y, M - 1, D, h, m, 0);
-  return ms;
+// Timestamp'i UTC dakikasının başlangıcına yuvarlar
+export function msMinuteStartUTC(datetimeStr) {
+  const ms = Date.parse(datetimeStr + "Z"); // UTC parse
+  return Math.floor(ms / 60000) * 60000;
 }
 
-async function fetchKline(path, symbol, openMs) {
-  const url = api(path, {
-    symbol: symbol.toUpperCase(),
-    interval: "1m",
-    startTime: String(openMs),
-    limit: "1"
-  });
-  const res = await fetch(url, { method: "GET" });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText} – ${url}\n${t}`);
-  }
-  const data = await res.json();
-  if (!Array.isArray(data) || !data.length) return null;
-  const k = data[0];
+// Belirli dakikanın Mark ve Last OHLC'sini al
+export async function getTriggerMinuteCandles(symbol, datetimeStr) {
+  const msStart = msMinuteStartUTC(datetimeStr);
+  const startTime = msStart;
+
+  // Mark Price Candle
+  const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${startTime}&limit=1`;
+  const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&limit=1`;
+
+  const [markRes, lastRes] = await Promise.all([
+    fetch(markUrl),
+    fetch(lastUrl)
+  ]);
+
+  if (!markRes.ok) throw new Error(`MarkPrice fetch failed ${markRes.status}`);
+  if (!lastRes.ok) throw new Error(`LastPrice fetch failed ${lastRes.status}`);
+
+  const markJson = await markRes.json();
+  const lastJson = await lastRes.json();
+
+  const parseCandle = (arr) => arr && arr.length
+    ? {
+        open: parseFloat(arr[0][1]),
+        high: parseFloat(arr[0][2]),
+        low: parseFloat(arr[0][3]),
+        close: parseFloat(arr[0][4])
+      }
+    : null;
+
   return {
-    openTime: k[0],
-    open: parseFloat(k[1]),
-    high: parseFloat(k[2]),
-    low: parseFloat(k[3]),
-    close: parseFloat(k[4]),
-    closeTime: k[6]
+    mark: parseCandle(markJson),
+    last: parseCandle(lastJson)
   };
 }
 
-export async function getTriggerMinuteCandles(symbol, triggeredAtUtc) {
-  const openMs = msMinuteStartUTC(triggeredAtUtc);
-  const [mark, last] = await Promise.all([
-    fetchKline("/fapi/v1/markPriceKlines", symbol, openMs),
-    fetchKline("/fapi/v1/klines", symbol, openMs)
-  ]);
-  return { mark, last, openMs };
-}
+// Belirli tarih aralığında en yüksek / en düşük Mark ve Last Price’ları al
+export async function getRangeHighLow(symbol, fromStr, toStr) {
+  const from = msMinuteStartUTC(fromStr);
+  const to = msMinuteStartUTC(toStr);
 
-export async function getRangeHiLo(symbol, placedAtUtc, triggeredAtUtc) {
-  // Optional: could be added later; keeping minimal to avoid heavy calls on client.
-  return null;
+  const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${from}&endTime=${to}`;
+  const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${from}&endTime=${to}`;
+
+  const [markRes, lastRes] = await Promise.all([
+    fetch(markUrl),
+    fetch(lastUrl)
+  ]);
+
+  if (!markRes.ok) throw new Error(`MarkPrice fetch failed ${markRes.status}`);
+  if (!lastRes.ok) throw new Error(`LastPrice fetch failed ${lastRes.status}`);
+
+  const markJson = await markRes.json();
+  const lastJson = await lastRes.json();
+
+  function analyze(candles) {
+    if (!candles || !candles.length) return { highest: null, lowest: null };
+    let highest = { price: -Infinity, time: "" };
+    let lowest = { price: Infinity, time: "" };
+    for (const c of candles) {
+      const high = parseFloat(c[2]);
+      const low = parseFloat(c[3]);
+      const time = new Date(c[0]).toISOString().replace("T", " ").slice(0,19);
+      if (high > highest.price) highest = { price: high, time };
+      if (low < lowest.price) lowest = { price: low, time };
+    }
+    return { highest, lowest };
+  }
+
+  const markStats = analyze(markJson);
+  const lastStats = analyze(lastJson);
+
+  return {
+    highestMark: markStats.highest,
+    lowestMark: markStats.lowest,
+    highestLast: lastStats.highest,
+    lowestLast: lastStats.lowest
+  };
 }
