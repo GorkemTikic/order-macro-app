@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main   # ✅ burada düzeltildi
+      - main   # build when pushing to main
   workflow_dispatch:
 
 permissions:
@@ -27,10 +27,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install
-        run: npm ci
+      - name: Install dependencies
+        run: npm install   # ✅ fixed (was npm ci)
 
-      - name: Build
+      - name: Build project
         run: npm run build
 
       - name: Upload artifact
