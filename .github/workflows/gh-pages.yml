@@ -1,14 +1,9 @@
-
----
-
-## 9) `.github/workflows/gh-pages.yml` — **Otomatik GitHub Pages deploy**
-
-```yaml
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main   # ✅ burada düzeltildi
   workflow_dispatch:
 
 permissions:
