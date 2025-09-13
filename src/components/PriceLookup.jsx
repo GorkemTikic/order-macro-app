@@ -1,19 +1,17 @@
-// src/components/PriceLookup.jsx
-
 import React, { useState } from "react";
-import { getTriggerMinuteCandles, getLastPrice1s } from "../pricing";
+import { getTriggerMinuteCandles, getRangeHighLow, getLastPrice1s } from "../pricing";
 
 export default function PriceLookup() {
   const [symbol, setSymbol] = useState("ETHUSDT");
   const [datetime, setDatetime] = useState("");
-  const [mode, setMode] = useState("minute"); // minute | second | range
+  const [mode, setMode] = useState("minute");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
 
   async function handleLookup() {
-    setError(""); 
+    setError("");
     setResult("");
 
     if (mode === "minute") {
@@ -31,8 +29,7 @@ export default function PriceLookup() {
       } catch (err) {
         setError(err.message);
       }
-    } 
-    else if (mode === "second") {
+    } else if (mode === "second") {
       if (!datetime) return setError("Please enter a datetime.");
       try {
         const data = await getLastPrice1s(symbol, datetime);
@@ -44,36 +41,16 @@ export default function PriceLookup() {
           setResult(msg);
         }
       } catch (err) {
-        if (err.message.includes("7 days")) {
-          setError("⚠️ 1-second data is only available for the last 7 days.");
-        } else {
-          setError(err.message);
-        }
+        setError(err.message);
       }
-    } 
-    else if (mode === "range") {
+    } else if (mode === "range") {
       if (!from || !to) return setError("Please enter both From and To.");
       try {
-        const start = Date.parse(from + "Z");
-        const end = Date.parse(to + "Z");
-        if (isNaN(start) || isNaN(end)) throw new Error("Invalid date format.");
-        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${start}&endTime=${end}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to fetch range data");
-        const candles = await res.json();
-        if (!candles.length) return setResult("No data found for range.");
-
-        const highs = candles.map(c => parseFloat(c[2]));
-        const lows = candles.map(c => parseFloat(c[3]));
-        const high = Math.max(...highs);
-        const low = Math.min(...lows);
-        const highTime = new Date(candles[highs.indexOf(high)][0]).toISOString();
-        const lowTime = new Date(candles[lows.indexOf(low)][0]).toISOString();
-
+        const range = await getRangeHighLow(symbol, from, to);
+        if (!range) return setResult("No data found for range.");
         const msg = `When we check the ${symbol} Price Chart\n\nFrom: ${from}\nTo: ${to}\n\n` +
-          `${highTime} > At this date and time, the highest Last Price ${high} was reached.\n` +
-          `${lowTime} > At this date and time, the lowest Last Price ${low} was reached.`;
-
+          `${range.highTime} > At this date and time, the highest Last Price ${range.high} was reached.\n` +
+          `${range.lowTime} > At this date and time, the lowest Last Price ${range.low} was reached.`;
         setResult(msg);
       } catch (err) {
         setError(err.message);
@@ -115,9 +92,6 @@ export default function PriceLookup() {
               onChange={e => setDatetime(e.target.value)}
               placeholder="2025-09-11 12:30:18"
             />
-            {mode === "second" && (
-              <div className="helper">⚠️ Only works for the last 7 days.</div>
-            )}
           </div>
         ) : null}
 
