@@ -1,99 +1,107 @@
-import React, { useState } from "react";
-import { getTriggerMinuteCandles, getRangeHighLow, getLastPrice1s } from "../pricing";
+// src/components/PriceLookup.jsx
 
-export default function PriceLookup() {
+import React, { useState } from "react";
+import {
+  getTriggerMinuteCandles,
+  getRangeHighLow,
+  getLastPriceAtSecond,
+} from "../pricing";
+
+function PriceLookup() {
   const [symbol, setSymbol] = useState("ETHUSDT");
-  const [datetime, setDatetime] = useState("");
-  const [mode, setMode] = useState("minute");
+  const [mode, setMode] = useState("trigger");
+  const [at, setAt] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
 
   async function handleLookup() {
-    setError("");
     setResult("");
+    setError("");
 
-    if (mode === "minute") {
-      if (!datetime) return setError("Please enter a datetime.");
-      try {
-        const { mark, last } = await getTriggerMinuteCandles(symbol, datetime);
-        if (!mark && !last) {
-          setResult("No data found for that minute.");
-        } else {
-          const msg = `${datetime} UTC+0 = At this date and time, the Mark Price and Last Price details are:\n
-**Mark Price:**\nOpening: ${mark?.open ?? "N/A"}\nHighest: ${mark?.high ?? "N/A"}\nLowest: ${mark?.low ?? "N/A"}\nClosing: ${mark?.close ?? "N/A"}\n
-**Last Price:**\nOpening: ${last?.open ?? "N/A"}\nHighest: ${last?.high ?? "N/A"}\nLowest: ${last?.low ?? "N/A"}\nClosing: ${last?.close ?? "N/A"}`;
-          setResult(msg);
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-    } else if (mode === "second") {
-      if (!datetime) return setError("Please enter a datetime.");
-      try {
-        const data = await getLastPrice1s(symbol, datetime);
-        if (!data) {
-          setResult("No trade data found for that second.");
-        } else {
-          const msg = `${datetime} UTC+0 = At this date and time, the Last Price details (1s) are:\n
-**Last Price (1s):**\nOpening: ${data.open}\nHighest: ${data.high}\nLowest: ${data.low}\nClosing: ${data.close}\n(from ${data.count} trades)`;
-          setResult(msg);
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-    } else if (mode === "range") {
-      if (!from || !to) return setError("Please enter both From and To.");
-      try {
+    try {
+      if (mode === "trigger") {
+        if (!at) return setError("Please enter a Triggered At timestamp.");
+        const { mark, last } = await getTriggerMinuteCandles(symbol, at);
+        if (!mark && !last) return setResult("No data found.");
+        const msg =
+          `${at} UTC+0 = At this date and time, the Mark Price and Last Price details are:\n\n` +
+          `**Mark Price:**\nOpening: ${mark?.open ?? "N/A"}\nHighest: ${
+            mark?.high ?? "N/A"
+          }\nLowest: ${mark?.low ?? "N/A"}\nClosing: ${
+            mark?.close ?? "N/A"
+          }\n\n` +
+          `**Last Price:**\nOpening: ${last?.open ?? "N/A"}\nHighest: ${
+            last?.high ?? "N/A"
+          }\nLowest: ${last?.low ?? "N/A"}\nClosing: ${
+            last?.close ?? "N/A"
+          }`;
+        setResult(msg);
+      } else if (mode === "range") {
+        if (!from || !to) return setError("Please enter both From and To.");
         const range = await getRangeHighLow(symbol, from, to);
         if (!range) return setResult("No data found for range.");
-        const msg = `When we check the ${symbol} Price Chart\n\nFrom: ${from}\nTo: ${to}\n\n` +
-          `${range.highTime} > At this date and time, the highest Last Price ${range.high} was reached.\n` +
-          `${range.lowTime} > At this date and time, the lowest Last Price ${range.low} was reached.`;
+        const msg =
+          `When we check the ${symbol} Price Chart\n\nFrom: ${from}\nTo: ${to}\n\n` +
+          `${range.mark.highTime} > At this date and time, the highest Mark Price ${range.mark.high} was reached.\n` +
+          `${range.last.highTime} > At this date and time, the highest Last Price ${range.last.high} was reached.\n\n` +
+          `${range.mark.lowTime} > At this date and time, the lowest Mark Price ${range.mark.low} was reached.\n` +
+          `${range.last.lowTime} > At this date and time, the lowest Last Price ${range.last.low} was reached.`;
         setResult(msg);
-      } catch (err) {
-        setError(err.message);
+      } else if (mode === "last1s") {
+        if (!at) return setError("Please enter a DateTime (UTC).");
+        const ohlc = await getLastPriceAtSecond(symbol, at);
+        if (!ohlc)
+          return setResult("No trade data found for that second (Last Price).");
+        const msg =
+          `${at} UTC+0 = At this date and time, the Last Price details are:\n\n` +
+          `**Opening:** ${ohlc.open}\nHighest: ${ohlc.high}\nLowest: ${ohlc.low}\nClosing: ${ohlc.close}\n` +
+          `(based on ${ohlc.count} trades in that second)`;
+        setResult(msg);
       }
+    } catch (err) {
+      setError(err.message);
     }
   }
 
   return (
-    <div className="panel" style={{ marginTop: 20 }}>
-      <h2 style={{ marginBottom: 12 }}>Price Lookup Tool</h2>
+    <div className="panel">
+      <h3>Price Lookup Tool</h3>
       <div className="grid">
         <div className="col-6">
           <label className="label">Symbol</label>
           <input
             className="input"
             value={symbol}
-            onChange={e => setSymbol(e.target.value.toUpperCase())}
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
           />
         </div>
+
         <div className="col-6">
           <label className="label">Mode</label>
           <select
             className="select"
             value={mode}
-            onChange={e => setMode(e.target.value)}
+            onChange={(e) => setMode(e.target.value)}
           >
-            <option value="minute">Single Minute (Mark + Last)</option>
-            <option value="second">Single Second (Last only, 7d)</option>
+            <option value="trigger">Trigger Minute (Mark+Last)</option>
             <option value="range">Range (High/Low)</option>
+            <option value="last1s">Last Price 1s (max 7d)</option>
           </select>
         </div>
 
-        {mode === "minute" || mode === "second" ? (
+        {mode === "trigger" && (
           <div className="col-12">
-            <label className="label">Datetime (UTC, YYYY-MM-DD HH:MM:SS)</label>
+            <label className="label">At (UTC)</label>
             <input
               className="input"
-              value={datetime}
-              onChange={e => setDatetime(e.target.value)}
-              placeholder="2025-09-11 12:30:18"
+              placeholder="YYYY-MM-DD HH:MM:SS"
+              value={at}
+              onChange={(e) => setAt(e.target.value)}
             />
           </div>
-        ) : null}
+        )}
 
         {mode === "range" && (
           <>
@@ -101,36 +109,49 @@ export default function PriceLookup() {
               <label className="label">From (UTC)</label>
               <input
                 className="input"
+                placeholder="YYYY-MM-DD HH:MM:SS"
                 value={from}
-                onChange={e => setFrom(e.target.value)}
-                placeholder="2025-09-11 06:53:08"
+                onChange={(e) => setFrom(e.target.value)}
               />
             </div>
             <div className="col-6">
               <label className="label">To (UTC)</label>
               <input
                 className="input"
+                placeholder="YYYY-MM-DD HH:MM:SS"
                 value={to}
-                onChange={e => setTo(e.target.value)}
-                placeholder="2025-09-11 12:30:18"
+                onChange={(e) => setTo(e.target.value)}
               />
             </div>
           </>
         )}
 
+        {mode === "last1s" && (
+          <div className="col-12">
+            <label className="label">DateTime (UTC)</label>
+            <input
+              className="input"
+              placeholder="YYYY-MM-DD HH:MM:SS"
+              value={at}
+              onChange={(e) => setAt(e.target.value)}
+            />
+          </div>
+        )}
+
         <div className="col-12">
-          <button className="btn" onClick={handleLookup}>Lookup</button>
+          <button className="btn" onClick={handleLookup}>
+            Lookup
+          </button>
         </div>
       </div>
 
       {error && (
-        <div className="helper" style={{ color: "#ffb4b4", marginTop: 12 }}>
-          {error}
+        <div className="helper" style={{ color: "#ff6b6b" }}>
+          Error: {error}
         </div>
       )}
-
       {result && (
-        <div className="col-12" style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12 }}>
           <label className="label">Result</label>
           <textarea className="textarea" value={result} readOnly />
         </div>
@@ -138,3 +159,5 @@ export default function PriceLookup() {
     </div>
   );
 }
+
+export default PriceLookup;
