@@ -1,95 +1,62 @@
-const PROXY = ""; // CORS sorunu olursa buraya kendi proxy URL’ni koy
+// src/pricing.js
 
-// Timestamp'i UTC dakikasının başlangıcına yuvarlar
-export function msMinuteStartUTC(datetimeStr) {
-  const ms = Date.parse(datetimeStr + "Z"); // UTC parse
-  return Math.floor(ms / 60000) * 60000;
-}
+const PROXY = ""; // Eğer CORS sorunu yaşarsan buraya bir proxy adresi ekleyebilirsin
 
-// Belirli dakikanın Mark ve Last OHLC'sini al
-export async function getTriggerMinuteCandles(symbol, datetimeStr) {
-  const msStart = msMinuteStartUTC(datetimeStr);
-  const startTime = msStart;
-
-  // Mark Price Candle
-  const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${startTime}&limit=1`;
-  const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&limit=1`;
-
-  const [markRes, lastRes] = await Promise.all([
-    fetch(markUrl),
-    fetch(lastUrl)
-  ]);
-
-  if (!markRes.ok) throw new Error(`MarkPrice fetch failed ${markRes.status}`);
-  if (!lastRes.ok) throw new Error(`LastPrice fetch failed ${lastRes.status}`);
-
-  const markJson = await markRes.json();
-  const lastJson = await lastRes.json();
-
-  const parseCandle = (arr) => arr && arr.length
-    ? {
-        open: parseFloat(arr[0][1]),
-        high: parseFloat(arr[0][2]),
-        low: parseFloat(arr[0][3]),
-        close: parseFloat(arr[0][4])
-      }
-    : null;
-
+// Binance Futures: Mark Price (1m OHLC)
+export async function fetchMarkPriceCandles(symbol, startTime, endTime) {
+  const url = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`markPriceKlines fetch failed ${res.status}`);
+  const data = await res.json();
+  if (!data.length) return null;
   return {
-    mark: parseCandle(markJson),
-    last: parseCandle(lastJson)
+    open: parseFloat(data[0][1]),
+    high: parseFloat(data[0][2]),
+    low: parseFloat(data[0][3]),
+    close: parseFloat(data[0][4])
   };
 }
 
-// Belirli tarih aralığında en yüksek / en düşük Mark ve Last Price’ları al
-export async function getRangeHighLow(symbol, fromStr, toStr) {
-  const from = msMinuteStartUTC(fromStr);
-  const to = msMinuteStartUTC(toStr);
+// Binance Futures: Last Price (1m OHLC)
+export async function fetchLastPriceCandles(symbol, startTime, endTime) {
+  const url = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`klines fetch failed ${res.status}`);
+  const data = await res.json();
+  if (!data.length) return null;
+  return {
+    open: parseFloat(data[0][1]),
+    high: parseFloat(data[0][2]),
+    low: parseFloat(data[0][3]),
+    close: parseFloat(data[0][4])
+  };
+}
 
-  const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${from}&endTime=${to}`;
-  const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${from}&endTime=${to}`;
+// 1 dakikalık Mark & Last Price birlikte
+export async function getTriggerMinuteCandles(symbol, datetimeStr) {
+  const t = Date.parse(datetimeStr + "Z");
+  if (isNaN(t)) throw new Error("Invalid datetime: " + datetimeStr);
+  const start = msMinuteStartUTC(datetimeStr);
+  const end = start + 60 * 1000;
 
-  const [markRes, lastRes] = await Promise.all([
-    fetch(markUrl),
-    fetch(lastUrl)
+  const [mark, last] = await Promise.all([
+    fetchMarkPriceCandles(symbol, start, end),
+    fetchLastPriceCandles(symbol, start, end)
   ]);
+  return { mark, last };
+}
 
-  if (!markRes.ok) throw new Error(`MarkPrice fetch failed ${markRes.status}`);
-  if (!lastRes.ok) throw new Error(`LastPrice fetch failed ${lastRes.status}`);
+// 🔹 Yeni: 1 saniyelik Last Price OHLC (aggTrades ile, sadece son 7 gün için)
+export async function getLastPrice1s(symbol, datetimeStr) {
+  const start = Date.parse(datetimeStr + "Z");
+  const now = Date.now();
 
-  const markJson = await markRes.json();
-  const lastJson = await lastRes.json();
-
-  function analyze(candles) {
-    if (!candles || !candles.length) return { highest: null, lowest: null };
-    let highest = { price: -Infinity, time: "" };
-    let lowest = { price: Infinity, time: "" };
-    for (const c of candles) {
-      const high = parseFloat(c[2]);
-      const low = parseFloat(c[3]);
-      const time = new Date(c[0]).toISOString().replace("T", " ").slice(0,19);
-      if (high > highest.price) highest = { price: high, time };
-      if (low < lowest.price) lowest = { price: low, time };
-    }
-    return { highest, lowest };
+  // 7 gün kontrolü
+  if (now - start > 7 * 24 * 60 * 60 * 1000) {
+    throw new Error("This feature only works for the last 7 days.");
   }
 
-  const markStats = analyze(markJson);
-  const lastStats = analyze(lastJson);
-
-  return {
-    highestMark: markStats.highest,
-    lowestMark: markStats.lowest,
-    highestLast: lastStats.highest,
-    lowestLast: lastStats.lowest
-  };
-}
-
-// 🔹 Yeni: 1 saniyelik Last Price OHLC (aggTrades ile)
-export async function getLastPrice1s(symbol, datetimeStr) {
-  const start = Date.parse(datetimeStr + "Z"); // UTC timestamp
   const end = start + 1000; // 1 saniye sonrası
-
   const url = `${PROXY}https://fapi.binance.com/fapi/v1/aggTrades?symbol=${symbol}&startTime=${start}&endTime=${end}&limit=1000`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`aggTrades fetch failed ${res.status}`);
@@ -105,4 +72,11 @@ export async function getLastPrice1s(symbol, datetimeStr) {
     close: prices[prices.length - 1],
     count: trades.length
   };
+}
+
+// Zamanı UTC minute başlangıcına oturtur
+export function msMinuteStartUTC(datetimeStr) {
+  const d = new Date(datetimeStr + "Z");
+  d.setUTCSeconds(0, 0);
+  return d.getTime();
 }
