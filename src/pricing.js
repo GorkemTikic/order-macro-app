@@ -25,11 +25,10 @@ export function msMinuteStartUTC(tsStr) {
 function fmtUTC(ms) {
   const d = new Date(ms);
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
-    d.getUTCDate()
-  )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
-    d.getUTCSeconds()
-  )} UTC+0`;
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC+0`
+  );
 }
 
 /**
@@ -87,7 +86,12 @@ export async function getRangeHighLow(symbol, fromStr, toStr) {
   if (!lastRes.ok) throw new Error("Failed to fetch last price data");
   const lastCandles = await lastRes.json();
 
-  if (!markCandles.length && !lastCandles.length) return null;
+  if (!markCandles.length && !lastCandles.length) {
+    return {
+      mark: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A" },
+      last: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A" },
+    };
+  }
 
   // 🔹 Mark Price high/low
   let markHigh, markLow, markHighTime, markLowTime;
@@ -113,16 +117,16 @@ export async function getRangeHighLow(symbol, fromStr, toStr) {
 
   return {
     mark: {
-      high: markHigh,
-      low: markLow,
-      highTime: markHighTime,
-      lowTime: markLowTime,
+      high: markHigh ?? "N/A",
+      low: markLow ?? "N/A",
+      highTime: markHighTime ?? "N/A",
+      lowTime: markLowTime ?? "N/A",
     },
     last: {
-      high: lastHigh,
-      low: lastLow,
-      highTime: lastHighTime,
-      lowTime: lastLowTime,
+      high: lastHigh ?? "N/A",
+      low: lastLow ?? "N/A",
+      highTime: lastHighTime ?? "N/A",
+      lowTime: lastLowTime ?? "N/A",
     },
   };
 }
