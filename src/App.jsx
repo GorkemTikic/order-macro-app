@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import { listMacros, renderMacro } from "./macros";
-import { getTriggerMinuteCandles, msMinuteStartUTC } from "./pricing";
+import {
+  getTriggerMinuteCandles,
+  getRangeHighLow,
+  msMinuteStartUTC
+} from "./pricing";
 import PriceLookup from "./components/PriceLookup";
 
 const initialInputs = {
@@ -11,12 +15,12 @@ const initialInputs = {
   trigger_price: "",
   executed_price: "",
   placed_at_utc: "",
-  triggered_at_utc: ""
+  triggered_at_utc: "",
+  status: "OPEN"
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("macros");
-
   const [macros, setMacros] = useState([]);
   const [macroId, setMacroId] = useState("");
   const [inputs, setInputs] = useState(initialInputs);
@@ -55,29 +59,39 @@ export default function App() {
           "Triggered At (UTC) is required. Format: YYYY-MM-DD HH:MM:SS"
         );
 
-      // fetch candle
-      const { mark, last } = await getTriggerMinuteCandles(
-        inputs.symbol,
-        inputs.triggered_at_utc
-      );
-      const tMinute = new Date(
-        msMinuteStartUTC(inputs.triggered_at_utc)
-      )
-        .toISOString()
-        .slice(0, 16)
-        .replace("T", " ");
+      let prices = {};
 
-      const prices = {
-        triggered_minute: tMinute,
-        mark_open: mark ? mark.open.toFixed(8) : "N/A",
-        mark_high: mark ? mark.high.toFixed(8) : "N/A",
-        mark_low: mark ? mark.low.toFixed(8) : "N/A",
-        mark_close: mark ? mark.close.toFixed(8) : "N/A",
-        last_open: last ? last.open.toFixed(8) : "N/A",
-        last_high: last ? last.high.toFixed(8) : "N/A",
-        last_low: last ? last.low.toFixed(8) : "N/A",
-        last_close: last ? last.close.toFixed(8) : "N/A"
-      };
+      // Decide which data fetch to use based on macro
+      if (macroId === "stop_market_mark_vs_last_not_reached") {
+        const range = await getRangeHighLow(
+          inputs.symbol,
+          inputs.placed_at_utc,
+          inputs.triggered_at_utc
+        );
+        if (!range) throw new Error("No data found for this range.");
+        prices = range;
+      } else {
+        const { mark, last } = await getTriggerMinuteCandles(
+          inputs.symbol,
+          inputs.triggered_at_utc
+        );
+        const tMinute = new Date(msMinuteStartUTC(inputs.triggered_at_utc))
+          .toISOString()
+          .slice(0, 16)
+          .replace("T", " ");
+
+        prices = {
+          triggered_minute: tMinute,
+          mark_open: mark ? mark.open.toFixed(8) : "N/A",
+          mark_high: mark ? mark.high.toFixed(8) : "N/A",
+          mark_low: mark ? mark.low.toFixed(8) : "N/A",
+          mark_close: mark ? mark.close.toFixed(8) : "N/A",
+          last_open: last ? last.open.toFixed(8) : "N/A",
+          last_high: last ? last.high.toFixed(8) : "N/A",
+          last_low: last ? last.low.toFixed(8) : "N/A",
+          last_close: last ? last.close.toFixed(8) : "N/A"
+        };
+      }
 
       const msg = renderMacro(macroId, inputs, prices);
       setResult(msg);
@@ -97,8 +111,8 @@ export default function App() {
     await navigator.clipboard.writeText(result);
     const btn = document.getElementById("copy-btn");
     const old = btn.textContent;
-    btn.textContent = "Copied!";
-    setTimeout(() => (btn.textContent = old), 1000);
+    btn.textContent = "Copied! (Markdown-ready for chat)";
+    setTimeout(() => (btn.textContent = old), 1500);
   }
 
   return (
@@ -205,6 +219,20 @@ export default function App() {
               />
             </div>
 
+            <div className="col-6">
+              <label className="label">Status</label>
+              <select
+                className="select"
+                value={inputs.status}
+                onChange={(e) => onChange("status", e.target.value)}
+              >
+                <option value="OPEN">OPEN</option>
+                <option value="CANCELED">CANCELED</option>
+                <option value="TRIGGERED">TRIGGERED</option>
+                <option value="EXECUTED">EXECUTED</option>
+              </select>
+            </div>
+
             <div className="col-12">
               <label className="label">
                 Triggered At (UTC, YYYY-MM-DD HH:MM:SS)
@@ -216,7 +244,8 @@ export default function App() {
                 placeholder="2025-09-11 12:30:18"
               />
               <div className="helper">
-                We’ll fetch the 1-minute candle that contains this timestamp.
+                We’ll fetch the 1-minute candle or range that contains this
+                timestamp.
               </div>
             </div>
 
