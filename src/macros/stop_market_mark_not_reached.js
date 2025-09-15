@@ -104,8 +104,8 @@ ${statusLine}${inputs.executed_price ? `\n**Executed Price:** ${inputs.executed_
 
 When we check the **${inputs.symbol} Price Chart**
 
-From: \`${inputs.placed_at_utc}\`  
-To: \`${inputs.triggered_at_utc}\`
+From: ${inputs.placed_at_utc} UTC+0  
+To: ${inputs.triggered_at_utc} UTC+0  
 
 ${table}
 
@@ -113,10 +113,7 @@ ${explanation}${stillOpen ? `
 
 ⚠️ *Please note: this order is still OPEN and may trigger in the future if Mark Price crosses the trigger price.*` : ""}
 
-📖 **Educational Info**  
-- **Mark Price** is used for liquidation calculations and is safer near liquidation levels.  
-- **Last Price** reacts faster to short-term spikes and is often preferred for take-profit strategies.
-
+For further details, you may check the official guide:  
 [Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)
 
 Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
@@ -160,9 +157,8 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
       }
 
       lines.push(``);
-      lines.push(`📖 **Educational Info**`);
-      lines.push(`- Use **Mark Price** near liquidation (liquidations are Mark-based).`);
-      lines.push(`- Use **Last Price** for take-profit when you want to capture faster moves.`);
+      lines.push(`For further details, you may check the official guide:`); 
+      lines.push(`[Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)`);
 
       return lines.join("\n");
     }
