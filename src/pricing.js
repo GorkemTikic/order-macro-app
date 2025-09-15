@@ -154,3 +154,55 @@ export async function getLastPriceAtSecond(symbol, atStr) {
     count: trades.length,
   };
 }
+
+/**
+ * 📌 Funding Rate & Mark Price (yakın funding kaydı)
+ */
+export async function getNearestFunding(symbol, targetUtcStr) {
+  const targetMs = Date.parse(targetUtcStr + "Z");
+  if (isNaN(targetMs)) throw new Error("Invalid date format.");
+
+  // funding rate history (try ±90 minutes around)
+  for (const windowMin of [10, 30, 90]) {
+    const url = `${PROXY}https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol.toUpperCase()}&startTime=${targetMs - windowMin * 60_000}&endTime=${targetMs + windowMin * 60_000}&limit=1000`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch fundingRate");
+    const rows = await res.json();
+    if (rows && rows.length) {
+      rows.sort(
+        (a, b) =>
+          Math.abs(parseInt(a.fundingTime) - targetMs) -
+          Math.abs(parseInt(b.fundingTime) - targetMs)
+      );
+      const rec = rows[0];
+      return {
+        funding_time: fmtUTC(Number(rec.fundingTime)),
+        funding_rate: parseFloat(rec.fundingRate),
+        mark_price: rec.markPrice ? parseFloat(rec.markPrice) : null,
+        funding_time_ms: Number(rec.fundingTime)
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * 📌 Eğer funding kaydında markPrice yoksa 1m kapanışını al
+ */
+export async function getMarkPriceClose1m(symbol, fundingTimeMs) {
+  const startMinute = fundingTimeMs - (fundingTimeMs % 60_000);
+  const candidates = [startMinute, startMinute - 60_000];
+  for (const start of candidates) {
+    const url = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol.toUpperCase()}&interval=1m&startTime=${start}&limit=1`;
+    const res = await fetch(url);
+    if (!res.ok) continue;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length) {
+      return {
+        mark_price: parseFloat(data[0][4]),
+        close_time: fmtUTC(Number(data[0][6]))
+      };
+    }
+  }
+  return null;
+}
