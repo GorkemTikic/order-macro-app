@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
-import { listMacros, renderMacro } from "./macros";
+import { listMacros, renderMacro } from "./macros/index.js";
 import {
   getTriggerMinuteCandles,
   getRangeHighLow,
