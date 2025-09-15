@@ -1,8 +1,10 @@
 // src/macros/index.js
 import { stopMarketMarkNotReached } from "./stop_market_mark_not_reached";
+import { fundingMacro } from "./funding_macro";
 
 export const MACROS = [
-  stopMarketMarkNotReached
+  stopMarketMarkNotReached,
+  fundingMacro
 ];
 
 export const listMacros = () =>
