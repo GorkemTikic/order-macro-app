@@ -1,11 +1,10 @@
 // src/macros/index.js
 import { stopMarketMarkNotReached } from "./stop_market_mark_not_reached";
-// Funding Macro intentionally not imported here
-// because it has its own dedicated tab (FundingMacro.jsx)
+import { fundingMacro } from "./funding_macro"; // normal import
 
+// Funding Macro intentionally excluded from MACROS list
 export const MACROS = [
   stopMarketMarkNotReached
-  // fundingMacro is excluded from Macro Generator dropdown
 ];
 
 export const listMacros = () =>
@@ -17,10 +16,7 @@ export const listMacros = () =>
   }));
 
 export function renderMacro(macroId, inputs, prices, mode = "detailed") {
-  // Funding Macro is still available for direct render calls
   if (macroId === "funding_macro") {
-    // dynamic import avoids including it in dropdown
-    const { fundingMacro } = require("./funding_macro");
     const tpl = fundingMacro.templates?.[mode];
     if (!tpl) throw new Error(`Template for mode "${mode}" not found in funding_macro`);
     return tpl({ inputs, prices });
