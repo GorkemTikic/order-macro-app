@@ -26,6 +26,7 @@ function buildSideAwareBlock(inputs, prices) {
 
     const neutralExplanation =
 `Because the trigger condition is **Mark Price**, the order can only activate when Mark Price crosses your trigger level (${inputs.trigger_price}).  
+
 The Mark Price extremes within this period did not cross that level, so the order did not activate.`;
 
     return { table: bothBlock, explanation: neutralExplanation };
@@ -41,10 +42,12 @@ The Mark Price extremes within this period did not cross that level, so the orde
     const markCrossed = Number.isFinite(mLow) && Number.isFinite(trig) ? (mLow <= trig) : false;
 
     let explanation = `Since you placed a **SELL Stop-Market**, the Mark Price needed to fall to **${inputs.trigger_price}**.  
+
 However, the lowest Mark Price was **${fmtNum(mLow)}**, which stayed *above* your trigger price, so the order did not activate.`;
 
     if (lastCrossed && !markCrossed) {
-      explanation += `
+      explanation += `  
+
 ➡️ Even though the **Last Price** reached/passed your trigger level, the **Mark Price** did not, therefore the Stop-Market order could not trigger.`;
     }
 
@@ -60,10 +63,12 @@ However, the lowest Mark Price was **${fmtNum(mLow)}**, which stayed *above* you
   const markCrossed = Number.isFinite(mHigh) && Number.isFinite(trig) ? (mHigh >= trig) : false;
 
   let explanation = `Since you placed a **BUY Stop-Market**, the Mark Price needed to rise to **${inputs.trigger_price}**.  
+
 However, the highest Mark Price was **${fmtNum(mHigh)}**, which stayed *below* your trigger price, so the order did not activate.`;
 
   if (lastCrossed && !markCrossed) {
-    explanation += `
+    explanation += `  
+
 ➡️ Even though the **Last Price** reached/passed your trigger level, the **Mark Price** did not, therefore the Stop-Market order could not trigger.`;
   }
 
@@ -94,27 +99,28 @@ export const stopMarketMarkNotReached = {
       return (
 `**Order ID:** ${inputs.order_id}
 
-${inputs.placed_at_utc} UTC+0 = At this date and time you placed a Stop-Market order (**${upper(inputs.side) || "N/A"}**) for **${inputs.symbol}**.
+${inputs.placed_at_utc} UTC+0 = At this date and time you placed a Stop-Market order (**${upper(inputs.side) || "N/A"}**) for **${inputs.symbol}**.  
 
 **Order Type:** Stop-Market  
 **Trigger Condition:** ${inputs.trigger_type}  
-**Trigger Price:** ${inputs.trigger_price}
+**Trigger Price:** ${inputs.trigger_price}  
 
-${statusLine}${inputs.executed_price ? `\n**Executed Price:** ${inputs.executed_price}` : ""}
+${statusLine}${inputs.executed_price ? `\n**Executed Price:** ${inputs.executed_price}` : ""}  
 
-When we check the **${inputs.symbol} Price Chart**
+When we check the **${inputs.symbol} Price Chart**  
 
 From: ${inputs.placed_at_utc} UTC+0  
 To: ${inputs.triggered_at_utc} UTC+0  
 
-${table}
+${table}  
 
-${explanation}${stillOpen ? `
+${explanation}${stillOpen ? `  
 
-⚠️ *Please note: this order is still OPEN and may trigger in the future if Mark Price crosses the trigger price.*` : ""}
+⚠️ *Please note: this order is still OPEN and may trigger in the future if Mark Price crosses the trigger price.*` : ""}  
 
-For further details, you may check the official guide:  
-[Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)
+*The experienced traders who are aware of this difference use **Mark Price** near liquidation risk, while they may choose **Last Price** for faster moves like take-profit.*  
+
+[Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)  
 
 Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
       );
@@ -157,7 +163,7 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
       }
 
       lines.push(``);
-      lines.push(`For further details, you may check the official guide:`); 
+      lines.push(`*The experienced traders who are aware of this difference use **Mark Price** near liquidation risk, while they may choose **Last Price** for faster moves like take-profit.*`);  
       lines.push(`[Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)`);
 
       return lines.join("\n");
