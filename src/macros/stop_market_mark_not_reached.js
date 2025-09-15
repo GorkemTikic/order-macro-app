@@ -15,6 +15,7 @@ function buildSideAwareBlock(inputs, prices) {
   const lHighT = prices?.last?.highTime;
   const lLowT = prices?.last?.lowTime;
 
+  // Neutral (side not given)
   if (side !== "BUY" && side !== "SELL") {
     const bothBlock =
 `> Highest Mark Price: ${fmtNum(mHigh)} at ${mHighT || "N/A"}
@@ -30,6 +31,7 @@ The Mark Price extremes within this period did not cross that level, so the orde
     return { table: bothBlock, explanation: neutralExplanation };
   }
 
+  // SELL → looking at lows
   if (side === "SELL") {
     const table =
 `> Lowest **Mark Price**: ${fmtNum(mLow)} at ${mLowT || "N/A"}
@@ -45,10 +47,11 @@ However, the lowest Mark Price was **${fmtNum(mLow)}**, which stayed *above* you
       explanation += `
 ➡️ Even though the **Last Price** reached/passed your trigger level, the **Mark Price** did not, therefore the Stop-Market order could not trigger.`;
     }
+
     return { table, explanation };
   }
 
-  // side === "BUY"
+  // BUY → looking at highs
   const table =
 `> Highest **Mark Price**: ${fmtNum(mHigh)} at ${mHighT || "N/A"}
 > Highest **Last Price**: ${fmtNum(lHigh)} at ${lHighT || "N/A"}`;
@@ -63,6 +66,7 @@ However, the highest Mark Price was **${fmtNum(mHigh)}**, which stayed *below* y
     explanation += `
 ➡️ Even though the **Last Price** reached/passed your trigger level, the **Mark Price** did not, therefore the Stop-Market order could not trigger.`;
   }
+
   return { table, explanation };
 }
 
@@ -122,6 +126,7 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
       const statusLine = statusLineFriendly(inputs);
       const side = upper(inputs.side);
       let lines = [];
+
       lines.push(`**Order ID:** ${inputs.order_id}  `);
       lines.push(``);
       lines.push(`${inputs.placed_at_utc} UTC+0 = You placed a Stop-Market order for **${inputs.symbol}**.`); 
@@ -144,6 +149,14 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
         lines.push(`- Your **Trigger Price** = ${inputs.trigger_price}`);
         lines.push(``);
         lines.push(`➡️ Even though **Last Price** may have moved further up, **Mark Price** stayed below your trigger price, so the order did not activate.`);
+      } else {
+        // Neutral fallback
+        lines.push(`During this time:`);
+        lines.push(`- Highest Mark/Last = ${fmtNum(prices?.mark?.high)} / ${fmtNum(prices?.last?.high)}`);
+        lines.push(`- Lowest Mark/Last = ${fmtNum(prices?.mark?.low)} / ${fmtNum(prices?.last?.low)}`);
+        lines.push(`- Your **Trigger Price** = ${inputs.trigger_price}`);
+        lines.push(``);
+        lines.push(`➡️ The order did not activate because **Mark Price** did not cross your trigger level.`);
       }
 
       lines.push(``);
