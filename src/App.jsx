@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import { listMacros, renderMacro } from "./macros";
@@ -11,6 +12,7 @@ import PriceLookup from "./components/PriceLookup";
 const initialInputs = {
   order_id: "",
   symbol: "ETHUSDT",
+  side: "SELL", // NEW: BUY or SELL
   trigger_type: "MARK",
   trigger_price: "",
   executed_price: "",
@@ -25,6 +27,7 @@ export default function App() {
   const [macroId, setMacroId] = useState("");
   const [inputs, setInputs] = useState(initialInputs);
   const [result, setResult] = useState("");
+  const [mode, setMode] = useState("detailed"); // Detailed / Summary
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const outRef = useRef(null);
@@ -59,10 +62,20 @@ export default function App() {
           "Triggered At (UTC) is required. Format: YYYY-MM-DD HH:MM:SS"
         );
 
+      // Bu makro RANGE verisi isterse placed_at_utc zorunlu
+      if (
+        macroId === "mark_not_reached_user_checked_last" &&
+        !inputs.placed_at_utc
+      ) {
+        throw new Error(
+          "Placed At (UTC) is required for this macro. Format: YYYY-MM-DD HH:MM:SS"
+        );
+      }
+
       let prices = {};
 
-      // Decide which data fetch to use based on macro
-      if (macroId === "stop_market_mark_vs_last_not_reached") {
+      // Makroya göre veri kaynağı
+      if (macroId === "mark_not_reached_user_checked_last") {
         const range = await getRangeHighLow(
           inputs.symbol,
           inputs.placed_at_utc,
@@ -93,7 +106,7 @@ export default function App() {
         };
       }
 
-      const msg = renderMacro(macroId, inputs, prices);
+      const msg = renderMacro(macroId, inputs, prices, mode);
       setResult(msg);
       setTimeout(
         () => outRef.current?.scrollIntoView({ behavior: "smooth" }),
@@ -155,6 +168,19 @@ export default function App() {
               </select>
             </div>
 
+            {/* Output Mode */}
+            <div className="col-6">
+              <label className="label">Output Mode</label>
+              <select
+                className="select"
+                value={mode}
+                onChange={(e) => setMode(e.target.value)}
+              >
+                <option value="detailed">Detailed / Professional</option>
+                <option value="summary">Summary / Simplified</option>
+              </select>
+            </div>
+
             <div className="col-6">
               <label className="label">Symbol</label>
               <input
@@ -165,6 +191,19 @@ export default function App() {
                 }
                 placeholder="ETHUSDT"
               />
+            </div>
+
+            {/* NEW: Side (BUY/SELL) */}
+            <div className="col-6">
+              <label className="label">Side</label>
+              <select
+                className="select"
+                value={inputs.side}
+                onChange={(e) => onChange("side", e.target.value)}
+              >
+                <option value="SELL">SELL</option>
+                <option value="BUY">BUY</option>
+              </select>
             </div>
 
             <div className="col-6">
