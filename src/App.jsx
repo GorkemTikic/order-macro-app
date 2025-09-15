@@ -8,6 +8,7 @@ import {
   msMinuteStartUTC
 } from "./pricing";
 import PriceLookup from "./components/PriceLookup";
+import FundingMacro from "./components/FundingMacro";
 
 const initialInputs = {
   order_id: "",
@@ -146,6 +147,12 @@ export default function App() {
             onClick={() => setActiveTab("lookup")}
           >
             Price Lookup
+          </button>
+          <button
+            className={activeTab === "funding" ? "tab active" : "tab"}
+            onClick={() => setActiveTab("funding")}
+          >
+            Funding Macro
           </button>
         </div>
       </div>
@@ -334,6 +341,7 @@ export default function App() {
       )}
 
       {activeTab === "lookup" && <PriceLookup />}
+      {activeTab === "funding" && <FundingMacro />}
     </div>
   );
 }
