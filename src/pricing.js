@@ -157,6 +157,7 @@ export async function getLastPriceAtSecond(symbol, atStr) {
 
 /**
  * 📌 Funding Rate & Mark Price (yakın funding kaydı)
+ * FundingRate endpoint’inden hem rate hem markPrice alınır.
  */
 export async function getNearestFunding(symbol, targetUtcStr) {
   const targetMs = Date.parse(targetUtcStr + "Z");
@@ -178,7 +179,7 @@ export async function getNearestFunding(symbol, targetUtcStr) {
       return {
         funding_time: fmtUTC(Number(rec.fundingTime)),
         funding_rate: parseFloat(rec.fundingRate),
-        mark_price: rec.markPrice ? parseFloat(rec.markPrice) : null,
+        mark_price: rec.markPrice ? parseFloat(rec.markPrice) : null, // ✅ FundingRate API’den markPrice
         funding_time_ms: Number(rec.fundingTime)
       };
     }
@@ -187,7 +188,7 @@ export async function getNearestFunding(symbol, targetUtcStr) {
 }
 
 /**
- * 📌 Eğer funding kaydında markPrice yoksa 1m kapanışını al
+ * 📌 Eğer funding kaydında markPrice yoksa 1m kapanışını al (fallback)
  */
 export async function getMarkPriceClose1m(symbol, fundingTimeMs) {
   const startMinute = fundingTimeMs - (fundingTimeMs % 60_000);
@@ -205,4 +206,38 @@ export async function getMarkPriceClose1m(symbol, fundingTimeMs) {
     }
   }
   return null;
+}
+
+/**
+ * 📌 Get symbol precision (price & qty decimals)
+ */
+function decimalsFromTickSize(tickSize) {
+  if (!tickSize) return 2;
+  const str = tickSize.toString();
+  if (!str.includes(".")) return 0;
+  const clean = str.replace(/0+$/, ""); // trailing zeros temizle
+  return (clean.split(".")[1] || "").length;
+}
+
+export async function getSymbolPrecision(symbol) {
+  const url = `${PROXY}https://fapi.binance.com/fapi/v1/exchangeInfo?symbol=${symbol.toUpperCase()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch exchangeInfo");
+  const data = await res.json();
+
+  if (!data.symbols || !data.symbols.length) {
+    return { priceDp: 2, qtyDp: 3 }; // fallback
+  }
+
+  const info = data.symbols[0];
+  const priceFilter = info.filters.find(f => f.filterType === "PRICE_FILTER");
+  const lotFilter = info.filters.find(f => f.filterType === "LOT_SIZE");
+
+  const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.01;
+  const stepSize = lotFilter ? parseFloat(lotFilter.stepSize) : 0.001;
+
+  const priceDp = decimalsFromTickSize(tickSize);
+  const qtyDp = decimalsFromTickSize(stepSize);
+
+  return { priceDp, qtyDp };
 }
