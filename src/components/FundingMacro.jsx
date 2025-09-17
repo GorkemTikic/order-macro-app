@@ -1,13 +1,17 @@
 // src/components/FundingMacro.jsx
 import React, { useState } from "react";
 import { renderMacro } from "../macros";
-import { getNearestFunding, getMarkPriceClose1m } from "../pricing";
+import {
+  getNearestFunding,
+  getMarkPriceClose1m,
+  getSymbolPrecision
+} from "../pricing";
 
 export default function FundingMacro() {
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [fundingTime, setFundingTime] = useState("");
   const [positionSize, setPositionSize] = useState("");
-  const [fundingInterval, setFundingInterval] = useState("8"); // agent manually enters
+  const [fundingInterval, setFundingInterval] = useState("8"); // manual input
   const [mode, setMode] = useState("detailed"); // detailed / summary
   const [result, setResult] = useState("");
   const [err, setErr] = useState("");
@@ -24,31 +28,35 @@ export default function FundingMacro() {
       if (!positionSize) throw new Error("Position Size is required.");
       if (!fundingInterval) throw new Error("Funding Interval (hours) is required.");
 
-      // 1. Funding kaydını getir
+      // 1) Funding record → rate + (varsa) markPrice
       const rec = await getNearestFunding(symbol, fundingTime);
       if (!rec) throw new Error("No funding record found near that time.");
 
-      let fundingRate = rec.funding_rate;
+      const fundingRate = rec.funding_rate;
       let markPrice = rec.mark_price;
       let fundingTimeStr = rec.funding_time;
 
-      // 2. Funding kaydında mark price yoksa 1m kapanışını al
-      if (!markPrice && rec.funding_time_ms) {
+      // 2) Eğer markPrice yoksa fallback olarak 1m kapanışı al
+      if (!markPrice) {
         const closeData = await getMarkPriceClose1m(symbol, rec.funding_time_ms);
-        if (closeData) {
-          markPrice = closeData.mark_price;
-          fundingTimeStr = closeData.close_time;
-        }
+        if (!closeData) throw new Error("Could not fetch mark price from 1m candles");
+        markPrice = closeData.mark_price;
+        fundingTimeStr = closeData.close_time;
       }
 
-      // 3. Macro inputs
+      // 3) Precision bilgilerini çek
+      const { priceDp, qtyDp } = await getSymbolPrecision(symbol);
+
+      // 4) Macro inputs
       const inputs = {
         symbol: symbol.toUpperCase(),
         funding_time: fundingTimeStr,
         funding_rate: fundingRate,
         mark_price: markPrice,
         position_size: positionSize,
-        funding_interval: fundingInterval
+        funding_interval: fundingInterval,
+        price_dp: priceDp,
+        qty_dp: qtyDp
       };
 
       const msg = renderMacro("funding_macro", inputs, {}, mode);
