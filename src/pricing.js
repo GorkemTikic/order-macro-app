@@ -1,5 +1,3 @@
-// src/pricing.js
-
 // Eğer CORS hatası alırsan buraya kendi proxy adresini yazabilirsin
 export const PROXY = "";
 
@@ -179,7 +177,7 @@ export async function getNearestFunding(symbol, targetUtcStr) {
       return {
         funding_time: fmtUTC(Number(rec.fundingTime)),
         funding_rate: parseFloat(rec.fundingRate),
-        mark_price: rec.markPrice ? parseFloat(rec.markPrice) : null, // ✅ FundingRate API’den markPrice
+        mark_price: rec.markPrice || null, // ✅ RAW string bırakıldı
         funding_time_ms: Number(rec.fundingTime)
       };
     }
