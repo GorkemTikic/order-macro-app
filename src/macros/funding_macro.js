@@ -1,4 +1,3 @@
-// src/macros/funding_macro.js
 import { fmtNum } from "./helpers";
 
 function decideSides(fundingRateNum) {
@@ -44,19 +43,18 @@ export const fundingMacro = {
         mark_price,
         position_size,
         funding_interval,
-        price_dp,
         qty_dp
       } = inputs;
 
       const rateNum = parseFloat(funding_rate);
       const ratePctStr = formatFundingRatePct(funding_rate);
-      const mark = Number(mark_price);
+      const mark = mark_price; // ✅ RAW string olarak bırak
       const size = Number(position_size);
 
       const { payer, receiver } = decideSides(rateNum);
 
       const notional =
-        Number.isFinite(size) && Number.isFinite(mark) ? size * mark : NaN;
+        Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
       const fundingFee =
         Number.isFinite(notional) && Number.isFinite(rateNum)
           ? notional * rateNum
@@ -80,7 +78,7 @@ If we check the funding rate history:
 We can see that on **${funding_time}**:  
 
 - **${symbol} Funding Rate:** ${ratePctStr}%  
-- **Mark Price:** ${mark.toFixed(6)} USDT  
+- **Mark Price:** ${mark} USDT  
 
 So all **${payer}** positions which were open at funding time had to pay funding fees to **${receiver}** position holders, based on their position size.  
 
@@ -89,7 +87,7 @@ Your position was a **${userSide}** position, so you had to pay it to ${receiver
 **Your Position Size:** ${fmtNum(size, qty_dp)} ${symbol}  
 
 **Calculation:**  
-- ${fmtNum(size, qty_dp)} × ${mark.toFixed(6)} = ${fmtNum(notional, 8)} USDT → Notional size of the position  
+- ${fmtNum(size, qty_dp)} × ${mark} = ${fmtNum(notional, 8)} USDT → Notional size of the position  
 - ${fmtNum(notional, 8)} × ${ratePctStr}% = ${fmtNum(fundingFee, 8)} USDT → Funding fee payment from this position  
 
 For further details, you may check the official guide:  
@@ -108,19 +106,18 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
         mark_price,
         position_size,
         funding_interval,
-        price_dp,
         qty_dp
       } = inputs;
 
       const rateNum = parseFloat(funding_rate);
       const ratePctStr = formatFundingRatePct(funding_rate);
-      const mark = Number(mark_price);
+      const mark = mark_price; // ✅ RAW string
       const size = Number(position_size);
 
       const { payer } = decideSides(rateNum);
 
       const notional =
-        Number.isFinite(size) && Number.isFinite(mark) ? size * mark : NaN;
+        Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
       const fundingFee =
         Number.isFinite(notional) && Number.isFinite(rateNum)
           ? notional * rateNum
@@ -133,7 +130,7 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
 `**Contract:** ${symbol}  
 **Funding Time (UTC+0):** ${funding_time}  
 **Funding Rate:** ${ratePctStr}%  
-**Mark Price:** ${mark.toFixed(6)}  
+**Mark Price:** ${mark}  
 **Funding Interval:** Every ${funding_interval || 8} hours  
 
 **Position Size:** ${fmtNum(size, qty_dp)} ${symbol}  
