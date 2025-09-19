@@ -4,18 +4,22 @@ import { renderMacro } from "../macros";
 import {
   getNearestFunding,
   getMarkPriceClose1m,
-  getSymbolPrecision
+  getAllSymbolPrecisions
 } from "../pricing";
+import { truncateToPrecision } from "../macros/helpers";
 
 export default function FundingMacro() {
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [fundingTime, setFundingTime] = useState("");
   const [positionSize, setPositionSize] = useState("");
-  const [fundingInterval, setFundingInterval] = useState("8"); // manual input
-  const [mode, setMode] = useState("detailed"); // detailed / summary
+  const [fundingInterval, setFundingInterval] = useState("8");
+  const [mode, setMode] = useState("detailed");
   const [result, setResult] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [rawMarkPrice, setRawMarkPrice] = useState(null);
+  const [lastInputs, setLastInputs] = useState(null);
 
   async function handleGenerate() {
     setErr("");
@@ -28,7 +32,6 @@ export default function FundingMacro() {
       if (!positionSize) throw new Error("Position Size is required.");
       if (!fundingInterval) throw new Error("Funding Interval (hours) is required.");
 
-      // 1) Funding record → rate + (varsa) markPrice
       const rec = await getNearestFunding(symbol, fundingTime);
       if (!rec) throw new Error("No funding record found near that time.");
 
@@ -36,18 +39,15 @@ export default function FundingMacro() {
       let markPrice = rec.mark_price;
       let fundingTimeStr = rec.funding_time;
 
-      // 2) Eğer markPrice yoksa fallback olarak 1m kapanışı al
       if (!markPrice) {
         const closeData = await getMarkPriceClose1m(symbol, rec.funding_time_ms);
         if (!closeData) throw new Error("Could not fetch mark price from 1m candles");
-        markPrice = closeData.mark_price;
+        markPrice = String(closeData.mark_price);
         fundingTimeStr = closeData.close_time;
       }
 
-      // 3) Precision bilgilerini çek
-      const { priceDp, qtyDp } = await getSymbolPrecision(symbol);
+      console.log("[Generate] rawMarkPrice:", markPrice);
 
-      // 4) Macro inputs
       const inputs = {
         symbol: symbol.toUpperCase(),
         funding_time: fundingTimeStr,
@@ -55,16 +55,40 @@ export default function FundingMacro() {
         mark_price: markPrice,
         position_size: positionSize,
         funding_interval: fundingInterval,
-        price_dp: priceDp,
-        qty_dp: qtyDp
+        price_dp: 0,
+        qty_dp: 0
       };
 
       const msg = renderMacro("funding_macro", inputs, {}, mode);
       setResult(msg);
+      setRawMarkPrice(markPrice);
+      setLastInputs(inputs);
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleApplyPrecision() {
+    try {
+      if (!lastInputs || rawMarkPrice == null) {
+        throw new Error("Please generate the macro first.");
+      }
+      const allPrecisions = await getAllSymbolPrecisions();
+      const pricePrecision = allPrecisions[lastInputs.symbol] || 2;
+
+      console.log("[ApplyPrecision]", lastInputs.symbol, "raw:", rawMarkPrice, "pricePrecision:", pricePrecision);
+
+      const truncated = truncateToPrecision(rawMarkPrice, pricePrecision);
+
+      const inputs2 = { ...lastInputs, mark_price: truncated };
+      const msg2 = renderMacro("funding_macro", inputs2, {}, mode);
+
+      setResult(msg2);
+      setLastInputs(inputs2);
+    } catch (e) {
+      setErr(e.message || String(e));
     }
   }
 
@@ -139,7 +163,7 @@ export default function FundingMacro() {
           </button>
         </div>
 
-        <div className="col-12">
+        <div className="col-12" style={{ display: "flex", gap: 10 }}>
           <button
             className="btn secondary"
             id="funding-copy-btn"
@@ -147,6 +171,15 @@ export default function FundingMacro() {
             disabled={!result}
           >
             Copy
+          </button>
+
+          <button
+            className="btn secondary"
+            onClick={handleApplyPrecision}
+            disabled={!result}
+            title="Apply exchangeInfo.pricePrecision (truncate, no rounding)"
+          >
+            Apply Precision
           </button>
         </div>
       </div>
