@@ -91,9 +91,11 @@ Your position was a **${userSide}** position, so you had to pay it to ${receiver
 - ${fmtNum(notional, 8)} × ${ratePctStr}% = ${fmtNum(fundingFee, 8)} USDT → Funding fee payment from this position  
 
 For further details, you may check the official guide:  
-[What Is Futures Funding Rate And Why It Matters](https://www.binance.com/en/blog/futures/what-is-futures-funding-rate-and-why-it-matters-421499824684903247)  
+[Introduction to Binance Futures Funding Rates](https://www.binance.com/support/faq/detail/360033525031)
+[What Is Futures Funding Rate And Why It Matters](https://www.binance.com/blog/futures/what-is-futures-funding-rate-and-why-it-matters-421499824684903247)  
+  
 
-⚠️ *If you don’t want to pay or receive funding fees, you should not have any open positions 1 minute before and after the funding countdown interval.*  
+⚠️ *There is a 15-second deviation in the actual funding fee transaction time. For example, when you open a position at 08:00:05 UTC, the funding fee could still apply (you'll either pay or receive the funding fee).*  
 
 Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
       );
