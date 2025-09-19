@@ -6,7 +6,7 @@ import {
   getMarkPriceClose1m,
   getAllSymbolPrecisions
 } from "../pricing";
-import { truncateToPrecision } from "../macros/helpers";
+import { truncateToPrecision } from "../macros/helpers.js";
 
 export default function FundingMacro() {
   const [symbol, setSymbol] = useState("BTCUSDT");
