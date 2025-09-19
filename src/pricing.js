@@ -157,13 +157,11 @@ export async function getLastPriceAtSecond(symbol, atStr) {
 
 /**
  * 📌 Funding Rate & Mark Price (yakın funding kaydı)
- * FundingRate endpoint’inden hem rate hem markPrice alınır.
  */
 export async function getNearestFunding(symbol, targetUtcStr) {
   const targetMs = Date.parse(targetUtcStr + "Z");
   if (isNaN(targetMs)) throw new Error("Invalid date format.");
 
-  // funding rate history (try ±90 minutes around)
   for (const windowMin of [10, 30, 90]) {
     const url = `${PROXY}https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol.toUpperCase()}&startTime=${targetMs - windowMin * 60_000}&endTime=${targetMs + windowMin * 60_000}&limit=1000`;
     const res = await fetch(url);
@@ -179,7 +177,7 @@ export async function getNearestFunding(symbol, targetUtcStr) {
       return {
         funding_time: fmtUTC(Number(rec.fundingTime)),
         funding_rate: parseFloat(rec.fundingRate),
-        mark_price: rec.markPrice ? parseFloat(rec.markPrice) : null, // ✅ FundingRate API’den markPrice
+        mark_price: rec.markPrice || null,
         funding_time_ms: Number(rec.fundingTime)
       };
     }
@@ -188,7 +186,7 @@ export async function getNearestFunding(symbol, targetUtcStr) {
 }
 
 /**
- * 📌 Eğer funding kaydında markPrice yoksa 1m kapanışını al (fallback)
+ * 📌 Eğer funding kaydında markPrice yoksa 1m kapanışı al (fallback)
  */
 export async function getMarkPriceClose1m(symbol, fundingTimeMs) {
   const startMinute = fundingTimeMs - (fundingTimeMs % 60_000);
@@ -209,35 +207,23 @@ export async function getMarkPriceClose1m(symbol, fundingTimeMs) {
 }
 
 /**
- * 📌 Get symbol precision (price & qty decimals)
+ * 📌 Get ALL symbol → pricePrecision map
  */
-function decimalsFromTickSize(tickSize) {
-  if (!tickSize) return 2;
-  const str = tickSize.toString();
-  if (!str.includes(".")) return 0;
-  const clean = str.replace(/0+$/, ""); // trailing zeros temizle
-  return (clean.split(".")[1] || "").length;
-}
+let symbolPrecisionCache = null;
 
-export async function getSymbolPrecision(symbol) {
-  const url = `${PROXY}https://fapi.binance.com/fapi/v1/exchangeInfo?symbol=${symbol.toUpperCase()}`;
+export async function getAllSymbolPrecisions() {
+  if (symbolPrecisionCache) return symbolPrecisionCache;
+
+  const url = `${PROXY}https://fapi.binance.com/fapi/v1/exchangeInfo`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch exchangeInfo");
   const data = await res.json();
 
-  if (!data.symbols || !data.symbols.length) {
-    return { priceDp: 2, qtyDp: 3 }; // fallback
+  const map = {};
+  for (const s of data.symbols) {
+    map[s.symbol] = s.pricePrecision;
   }
-
-  const info = data.symbols[0];
-  const priceFilter = info.filters.find(f => f.filterType === "PRICE_FILTER");
-  const lotFilter = info.filters.find(f => f.filterType === "LOT_SIZE");
-
-  const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.01;
-  const stepSize = lotFilter ? parseFloat(lotFilter.stepSize) : 0.001;
-
-  const priceDp = decimalsFromTickSize(tickSize);
-  const qtyDp = decimalsFromTickSize(stepSize);
-
-  return { priceDp, qtyDp };
+  console.log("[getAllSymbolPrecisions] loaded", Object.keys(map).length, "symbols");
+  symbolPrecisionCache = map;
+  return map;
 }
