@@ -29,3 +29,22 @@ export function statusLineFriendly(inputs) {
 
   return `${t} UTC+0 = Status: **${st || "N/A"}**.`;
 }
+
+/**
+ * Truncate a raw numeric string to given pricePrecision WITHOUT rounding.
+ * Logs input/output for debugging.
+ */
+export function truncateToPrecision(raw, prec) {
+  console.log("[truncateToPrecision] input:", raw, "prec:", prec);
+  if (raw === null || raw === undefined) return "N/A";
+  const s = String(raw);
+  const [intPart, decPart = ""] = s.split(".");
+  if (prec <= 0) {
+    console.log("[truncateToPrecision] output:", intPart);
+    return intPart;
+  }
+  const sliced = decPart.slice(0, prec);
+  const out = sliced ? `${intPart}.${sliced}` : intPart;
+  console.log("[truncateToPrecision] output:", out);
+  return out;
+}
