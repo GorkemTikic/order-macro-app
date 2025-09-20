@@ -1,10 +1,12 @@
 // src/macros/index.js
 import { stopMarketMarkNotReached } from "./stop_market_mark_not_reached";
+import { stopMarketLossHigherThanExpectedMarkPrice } from "./stop_market_loss_higher_than_expected_mark_price";
 import { fundingMacro } from "./funding_macro"; // normal import
 
 // Funding Macro intentionally excluded from MACROS list
 export const MACROS = [
-  stopMarketMarkNotReached
+  stopMarketMarkNotReached,
+  stopMarketLossHigherThanExpectedMarkPrice
 ];
 
 export const listMacros = () =>
