@@ -94,17 +94,27 @@ export default function App() {
           .slice(0, 16)
           .replace("T", " ");
 
-        prices = {
-          triggered_minute: tMinute,
-          mark_open: mark ? mark.open.toFixed(8) : "N/A",
-          mark_high: mark ? mark.high.toFixed(8) : "N/A",
-          mark_low: mark ? mark.low.toFixed(8) : "N/A",
-          mark_close: mark ? mark.close.toFixed(8) : "N/A",
-          last_open: last ? last.open.toFixed(8) : "N/A",
-          last_high: last ? last.high.toFixed(8) : "N/A",
-          last_low: last ? last.low.toFixed(8) : "N/A",
-          last_close: last ? last.close.toFixed(8) : "N/A"
-        };
+        // 🔹 Eğer yeni makro ise → RAW numeric verileri gönder
+        if (macroId === "stop_market_loss_higher_than_expected_mark_price") {
+          prices = {
+            triggered_minute: tMinute,
+            mark,
+            last
+          };
+        } else {
+          // 🔹 Eski mantık → stringe çevrilmiş veriler
+          prices = {
+            triggered_minute: tMinute,
+            mark_open: mark ? mark.open.toFixed(8) : "N/A",
+            mark_high: mark ? mark.high.toFixed(8) : "N/A",
+            mark_low: mark ? mark.low.toFixed(8) : "N/A",
+            mark_close: mark ? mark.close.toFixed(8) : "N/A",
+            last_open: last ? last.open.toFixed(8) : "N/A",
+            last_high: last ? last.high.toFixed(8) : "N/A",
+            last_low: last ? last.low.toFixed(8) : "N/A",
+            last_close: last ? last.close.toFixed(8) : "N/A"
+          };
+        }
       }
 
       const msg = renderMacro(macroId, inputs, prices, mode);
