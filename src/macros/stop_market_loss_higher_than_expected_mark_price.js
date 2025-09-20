@@ -38,8 +38,6 @@ export const stopMarketLossHigherThanExpectedMarkPrice = {
   ],
   templates: {
     detailed: ({ inputs, prices }) => {
-      const side = upper(inputs.side);
-
       const priceBlock = buildPriceBlock(inputs, prices);
 
       return (
@@ -77,11 +75,13 @@ We kindly ask you to understand that Mark Price is not the same price that is sh
 For a better understanding of all these concepts, you can check these links:  
 
 [What Is the Difference Between a Futures Contract’s Last Price and Mark Price?](https://www.binance.com/blog/futures/what-is-the-difference-between-a-futures-contracts-last-price-and-mark-price-5704082076024731087)  
-[What Are Stop Orders in Binance Futures?](https://www.binance.com/blog/futures/what-are-stop-orders-in-binance-futures-2094497753519691034)`
+
+[What Are Stop Orders in Binance Futures?](https://www.binance.com/blog/futures/what-are-stop-orders-in-binance-futures-2094497753519691034)  
+
+Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
       );
     },
     summary: ({ inputs, prices }) => {
-      const side = upper(inputs.side);
       const priceBlock = buildPriceBlock(inputs, prices);
 
       return (
@@ -97,7 +97,9 @@ ${priceBlock}
 ➡️ Your Stop-Market order was triggered when **Mark Price** reached the trigger, but it was executed at **Last Price**.  
 Since a Stop-Market is a conditional market order, it fills at the best available market price, which may differ from your trigger level.  
 
-As a result, the execution price differed from your expectation, causing a higher loss.`
+As a result, the execution price differed from your expectation, causing a higher loss.  
+
+Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
       );
     }
   }
