@@ -20,7 +20,8 @@ export const listMacros = () =>
 export function renderMacro(macroId, inputs, prices, mode = "detailed") {
   if (macroId === "funding_macro") {
     const tpl = fundingMacro.templates?.[mode];
-    if (!tpl) throw new Error(`Template for mode "${mode}" not found in funding_macro`);
+    if (!tpl)
+      throw new Error(`Template for mode "${mode}" not found in funding_macro`);
     return tpl({ inputs, prices });
   }
 
