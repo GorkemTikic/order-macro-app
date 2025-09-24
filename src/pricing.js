@@ -32,19 +32,61 @@ function fmtUTC(ms) {
 }
 
 /**
+ * İç kullanım: Büyük tarih aralıklarında 1m mumları sayfalı (paginated) çeker.
+ * Binance API 1 istekte en fazla ~1500 kline döndürür (≈ 25 saat @1m).
+ * Bu yüzden aralığı parçalayarak tüm veriyi topluyoruz.
+ *
+ * @param {"mark"|"last"} kind
+ * @param {string} symbol
+ * @param {number} startMs UTC ms
+ * @param {number} endMs UTC ms (exclusive önerilir)
+ * @returns {Promise<Array>} Kline dizisi (ham API formatı)
+ */
+async function fetchAll1mKlines(kind, symbol, startMs, endMs) {
+  const MAX_LIMIT = 1500; // güvenli üst sınır
+  let cur = startMs;
+  const out = [];
+  let guard = 0;
+
+  while (cur < endMs && guard++ < 10000) {
+    const base =
+      kind === "mark"
+        ? "https://fapi.binance.com/fapi/v1/markPriceKlines"
+        : "https://fapi.binance.com/fapi/v1/klines";
+
+    const url =
+      `${PROXY}${base}?symbol=${encodeURIComponent(symbol)}` +
+      `&interval=1m&startTime=${cur}&endTime=${endMs}&limit=${MAX_LIMIT}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch ${kind} price data`);
+    const chunk = await res.json();
+
+    if (!Array.isArray(chunk) || !chunk.length) break;
+
+    out.push(...chunk);
+
+    const lastOpen = Number(chunk[chunk.length - 1][0]);
+    const next = lastOpen + 60_000;
+    if (next <= cur) break;
+    cur = next;
+  }
+
+  return out;
+}
+
+/**
  * Tek bir dakikanın hem Mark hem de Last Price 1m mumunu çek
  */
 export async function getTriggerMinuteCandles(symbol, triggeredAtStr) {
   const start = msMinuteStartUTC(triggeredAtStr);
   const end = start + 60 * 1000;
 
-  // Mark Price candle
   const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${start}&endTime=${end}`;
   const markRes = await fetch(markUrl);
   if (!markRes.ok) throw new Error(`Failed to fetch Mark Price candle`);
   const markJson = await markRes.json();
 
-  // Last Price candle
   const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${start}&endTime=${end}`;
   const lastRes = await fetch(lastUrl);
   if (!lastRes.ok) throw new Error(`Failed to fetch Last Price candle`);
@@ -68,52 +110,51 @@ export async function getTriggerMinuteCandles(symbol, triggeredAtStr) {
 
 /**
  * Belirli aralıkta high/low (Mark + Last)
+ * ⚠️ Büyük aralıklarda tüm veriyi sayfalı çeker (paginate).
  */
 export async function getRangeHighLow(symbol, fromStr, toStr) {
   const start = Date.parse(fromStr + "Z");
   const end = Date.parse(toStr + "Z");
   if (isNaN(start) || isNaN(end)) throw new Error("Invalid date format.");
+  if (end <= start) throw new Error("End time must be after start time.");
 
-  // Mark Price candles
-  const markUrl = `${PROXY}https://fapi.binance.com/fapi/v1/markPriceKlines?symbol=${symbol}&interval=1m&startTime=${start}&endTime=${end}`;
-  const markRes = await fetch(markUrl);
-  if (!markRes.ok) throw new Error("Failed to fetch mark price data");
-  const markCandles = await markRes.json();
-
-  // Last Price candles
-  const lastUrl = `${PROXY}https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${start}&endTime=${end}`;
-  const lastRes = await fetch(lastUrl);
-  if (!lastRes.ok) throw new Error("Failed to fetch last price data");
-  const lastCandles = await lastRes.json();
+  const [markCandles, lastCandles] = await Promise.all([
+    fetchAll1mKlines("mark", symbol, start, end),
+    fetchAll1mKlines("last", symbol, start, end),
+  ]);
 
   if (!markCandles.length && !lastCandles.length) {
     return {
-      mark: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A" },
-      last: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A" },
+      mark: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A", changePct: "N/A" },
+      last: { high: "N/A", low: "N/A", highTime: "N/A", lowTime: "N/A", changePct: "N/A" },
     };
   }
 
-  // 🔹 Mark Price high/low
   let markHigh, markLow, markHighTime, markLowTime;
   if (markCandles.length) {
     const highs = markCandles.map((c) => parseFloat(c[2]));
     const lows = markCandles.map((c) => parseFloat(c[3]));
     markHigh = Math.max(...highs);
     markLow = Math.min(...lows);
-    markHighTime = fmtUTC(markCandles[highs.indexOf(markHigh)][0]);
-    markLowTime = fmtUTC(markCandles[lows.indexOf(markLow)][0]);
+    const idxH = highs.indexOf(markHigh);
+    const idxL = lows.indexOf(markLow);
+    markHighTime = fmtUTC(Number(markCandles[idxH][0]));
+    markLowTime = fmtUTC(Number(markCandles[idxL][0]));
   }
 
-  // 🔹 Last Price high/low
   let lastHigh, lastLow, lastHighTime, lastLowTime;
   if (lastCandles.length) {
     const highs = lastCandles.map((c) => parseFloat(c[2]));
     const lows = lastCandles.map((c) => parseFloat(c[3]));
     lastHigh = Math.max(...highs);
     lastLow = Math.min(...lows);
-    lastHighTime = fmtUTC(lastCandles[highs.indexOf(lastHigh)][0]);
-    lastLowTime = fmtUTC(lastCandles[lows.indexOf(lastLow)][0]);
+    const idxH = highs.indexOf(lastHigh);
+    const idxL = lows.indexOf(lastLow);
+    lastHighTime = fmtUTC(Number(lastCandles[idxH][0]));
+    lastLowTime = fmtUTC(Number(lastCandles[idxL][0]));
   }
+
+  const isNum = (v) => typeof v === "number" && !isNaN(v);
 
   return {
     mark: {
@@ -121,12 +162,20 @@ export async function getRangeHighLow(symbol, fromStr, toStr) {
       low: markLow ?? "N/A",
       highTime: markHighTime ?? "N/A",
       lowTime: markLowTime ?? "N/A",
+      changePct:
+        (isNum(markHigh) && isNum(markLow) && markLow !== 0)
+          ? (((markHigh - markLow) / markLow) * 100).toFixed(2) + "%"
+          : "N/A",
     },
     last: {
       high: lastHigh ?? "N/A",
       low: lastLow ?? "N/A",
       highTime: lastHighTime ?? "N/A",
       lowTime: lastLowTime ?? "N/A",
+      changePct:
+        (isNum(lastHigh) && isNum(lastLow) && lastLow !== 0)
+          ? (((lastHigh - lastLow) / lastLow) * 100).toFixed(2) + "%"
+          : "N/A",
     },
   };
 }
