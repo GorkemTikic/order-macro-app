@@ -47,7 +47,9 @@ function PriceLookup() {
           `${range.mark.highTime} > At this date and time, the highest Mark Price ${range.mark.high} was reached.\n` +
           `${range.last.highTime} > At this date and time, the highest Last Price ${range.last.high} was reached.\n\n` +
           `${range.mark.lowTime} > At this date and time, the lowest Mark Price ${range.mark.low} was reached.\n` +
-          `${range.last.lowTime} > At this date and time, the lowest Last Price ${range.last.low} was reached.`;
+          `${range.last.lowTime} > At this date and time, the lowest Last Price ${range.last.low} was reached.\n\n` +
+          `**Mark Price Change (High→Low):** ${range.mark.changePct}\n` +
+          `**Last Price Change (High→Low):** ${range.last.changePct}`;
         setResult(msg);
       } else if (mode === "last1s") {
         if (!at) return setError("Please enter a DateTime (UTC).");
