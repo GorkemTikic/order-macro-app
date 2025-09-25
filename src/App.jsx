@@ -13,7 +13,7 @@ import FundingMacro from "./components/FundingMacro";
 const initialInputs = {
   order_id: "",
   symbol: "ETHUSDT",
-  side: "SELL", // NEW: BUY or SELL
+  side: "SELL",
   trigger_type: "MARK",
   trigger_price: "",
   executed_price: "",
@@ -28,7 +28,7 @@ export default function App() {
   const [macroId, setMacroId] = useState("");
   const [inputs, setInputs] = useState(initialInputs);
   const [result, setResult] = useState("");
-  const [mode, setMode] = useState("detailed"); // Detailed / Summary
+  const [mode, setMode] = useState("detailed");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const outRef = useRef(null);
@@ -63,7 +63,6 @@ export default function App() {
           "Triggered At (UTC) is required. Format: YYYY-MM-DD HH:MM:SS"
         );
 
-      // Bu makro RANGE verisi isterse placed_at_utc zorunlu
       if (
         macroId === "mark_not_reached_user_checked_last" &&
         !inputs.placed_at_utc
@@ -75,7 +74,6 @@ export default function App() {
 
       let prices = {};
 
-      // Makroya göre veri kaynağı
       if (macroId === "mark_not_reached_user_checked_last") {
         const range = await getRangeHighLow(
           inputs.symbol,
@@ -94,23 +92,13 @@ export default function App() {
           .slice(0, 16)
           .replace("T", " ");
 
-        // 🔹 Stop-Market (Mark Price) → raw mark + last
         if (macroId === "stop_market_loss_higher_than_expected_mark_price") {
-          prices = {
-            triggered_minute: tMinute,
-            mark,
-            last
-          };
-        }
-        // 🔹 Stop-Market (Last Price) → sadece raw last
-        else if (macroId === "stop_market_loss_higher_than_expected_last_price") {
-          prices = {
-            triggered_minute: tMinute,
-            last
-          };
-        }
-        // 🔹 Diğer makrolar → eski string format
-        else {
+          prices = { triggered_minute: tMinute, mark, last };
+        } else if (
+          macroId === "stop_market_loss_higher_than_expected_last_price"
+        ) {
+          prices = { triggered_minute: tMinute, last };
+        } else {
           prices = {
             triggered_minute: tMinute,
             mark_open: mark ? mark.open.toFixed(8) : "N/A",
@@ -206,6 +194,7 @@ export default function App() {
               </select>
             </div>
 
+            {/* New Order of Inputs */}
             <div className="col-6">
               <label className="label">Symbol</label>
               <input
@@ -218,7 +207,16 @@ export default function App() {
               />
             </div>
 
-            {/* NEW: Side (BUY/SELL) */}
+            <div className="col-6">
+              <label className="label">Order ID</label>
+              <input
+                className="input"
+                value={inputs.order_id}
+                onChange={(e) => onChange("order_id", e.target.value)}
+                placeholder="8389..."
+              />
+            </div>
+
             <div className="col-6">
               <label className="label">Side</label>
               <select
@@ -229,6 +227,16 @@ export default function App() {
                 <option value="SELL">SELL</option>
                 <option value="BUY">BUY</option>
               </select>
+            </div>
+
+            <div className="col-6">
+              <label className="label">Placed At (UTC, YYYY-MM-DD HH:MM:SS)</label>
+              <input
+                className="input"
+                value={inputs.placed_at_utc}
+                onChange={(e) => onChange("placed_at_utc", e.target.value)}
+                placeholder="2025-09-11 06:53:08"
+              />
             </div>
 
             <div className="col-6">
@@ -251,6 +259,20 @@ export default function App() {
               />
             </div>
 
+            <div className="col-12">
+              <label className="label">Triggered At (UTC, YYYY-MM-DD HH:MM:SS)</label>
+              <input
+                className="input"
+                value={inputs.triggered_at_utc}
+                onChange={(e) => onChange("triggered_at_utc", e.target.value)}
+                placeholder="2025-09-11 12:30:18"
+              />
+              <div className="helper">
+                We’ll fetch the 1-minute candle or range that contains this
+                timestamp.
+              </div>
+            </div>
+
             <div className="col-6">
               <label className="label">Executed Price</label>
               <input
@@ -258,28 +280,6 @@ export default function App() {
                 value={inputs.executed_price}
                 onChange={(e) => onChange("executed_price", e.target.value)}
                 placeholder="e.g. 4331.67"
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Order ID</label>
-              <input
-                className="input"
-                value={inputs.order_id}
-                onChange={(e) => onChange("order_id", e.target.value)}
-                placeholder="8389..."
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">
-                Placed At (UTC, YYYY-MM-DD HH:MM:SS)
-              </label>
-              <input
-                className="input"
-                value={inputs.placed_at_utc}
-                onChange={(e) => onChange("placed_at_utc", e.target.value)}
-                placeholder="2025-09-11 06:53:08"
               />
             </div>
 
@@ -295,22 +295,6 @@ export default function App() {
                 <option value="TRIGGERED">TRIGGERED</option>
                 <option value="EXECUTED">EXECUTED</option>
               </select>
-            </div>
-
-            <div className="col-12">
-              <label className="label">
-                Triggered At (UTC, YYYY-MM-DD HH:MM:SS)
-              </label>
-              <input
-                className="input"
-                value={inputs.triggered_at_utc}
-                onChange={(e) => onChange("triggered_at_utc", e.target.value)}
-                placeholder="2025-09-11 12:30:18"
-              />
-              <div className="helper">
-                We’ll fetch the 1-minute candle or range that contains this
-                timestamp.
-              </div>
             </div>
 
             <div className="col-12">
