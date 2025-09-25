@@ -94,15 +94,23 @@ export default function App() {
           .slice(0, 16)
           .replace("T", " ");
 
-        // 🔹 Eğer yeni makro ise → RAW numeric verileri gönder
+        // 🔹 Stop-Market (Mark Price) → raw mark + last
         if (macroId === "stop_market_loss_higher_than_expected_mark_price") {
           prices = {
             triggered_minute: tMinute,
             mark,
             last
           };
-        } else {
-          // 🔹 Eski mantık → stringe çevrilmiş veriler
+        }
+        // 🔹 Stop-Market (Last Price) → sadece raw last
+        else if (macroId === "stop_market_loss_higher_than_expected_last_price") {
+          prices = {
+            triggered_minute: tMinute,
+            last
+          };
+        }
+        // 🔹 Diğer makrolar → eski string format
+        else {
           prices = {
             triggered_minute: tMinute,
             mark_open: mark ? mark.open.toFixed(8) : "N/A",
