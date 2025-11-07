@@ -10,6 +10,7 @@ import {
 import PriceLookup from "./components/PriceLookup";
 import FundingMacro from "./components/FundingMacro";
 
+// ✅ GÜNCELLENDİ: initialInputs tüm olası alanlar için bir temel sağlar
 const initialInputs = {
   order_id: "",
   symbol: "ETHUSDT",
@@ -21,6 +22,24 @@ const initialInputs = {
   triggered_at_utc: "",
   status: "OPEN"
 };
+
+// ✅ GÜNCELLENDİ: Etiket fonksiyonu 'EXECUTED' durumunu daha iyi ele alıyor
+function getDynamicTimestampLabel(status) {
+  switch (status) {
+    case "OPEN":
+      return "To (UTC, YYYY-MM-DD HH:MM:SS)";
+    case "CANCELED":
+      return "Canceled At (UTC, YYYY-MM-DD HH:MM:SS)";
+    case "EXPIRED":
+      return "Expired At (UTC, YYYY-MM-DD HH:MM:SS)";
+    case "TRIGGERED":
+      return "Triggered At (UTC, YYYY-MM-DD HH:MM:SS)";
+    case "EXECUTED":
+      return "Executed At (UTC, YYYY-MM-DD HH:MM:SS)";
+    default:
+      return "Timestamp (UTC, YYYY-MM-DD HH:MM:SS)";
+  }
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("macros");
@@ -37,16 +56,35 @@ export default function App() {
     setMacros(listMacros());
   }, []);
 
+  const activeMacro = useMemo(
+    () => macros.find((m) => m.id === macroId),
+    [macros, macroId]
+  );
+
   useEffect(() => {
     if (macros.length && !macroId) {
       setMacroId(macros[0].id);
     }
   }, [macros, macroId]);
 
-  const activeMacro = useMemo(
-    () => macros.find((m) => m.id === macroId),
-    [macros, macroId]
-  );
+  // ✅ YENİ: Makro değiştikçe, formun varsayılan değerlerini ayarla
+  useEffect(() => {
+    if (!activeMacro) return;
+
+    // 1. Yeni makronun formConfig'inden varsayılanları al
+    const newDefaults = {};
+    activeMacro.formConfig.forEach((field) => {
+      if (field.defaultValue !== undefined) {
+        newDefaults[field.name] = field.defaultValue;
+      }
+    });
+
+    // 2. Mevcut inputları koruyarak (örn. 'symbol' veya 'order_id') yenilerini ayarla
+    setInputs((prev) => ({
+      ...prev, // 'symbol' gibi ortak alanları koru
+      ...newDefaults // 'status' ve 'trigger_type' gibi kilitli alanları ez
+    }));
+  }, [activeMacro]); // Sadece 'activeMacro' değiştiğinde çalışır
 
   const onChange = (k, v) => setInputs((prev) => ({ ...prev, [k]: v }));
 
@@ -55,17 +93,30 @@ export default function App() {
     setErr("");
     setResult("");
 
+    let effectiveInputs = { ...inputs };
+    let toTime = inputs.triggered_at_utc;
+
+    if (inputs.status === "OPEN") {
+      toTime = new Date().toISOString().slice(0, 19).replace("T", " ");
+      effectiveInputs.triggered_at_utc = toTime;
+    }
+
     try {
       if (!activeMacro) throw new Error("Select a macro.");
-      if (!inputs.symbol) throw new Error("Symbol is required.");
-      if (!inputs.triggered_at_utc)
-        throw new Error(
-          "Triggered At (UTC) is required. Format: YYYY-MM-DD HH:MM:SS"
-        );
+      if (!effectiveInputs.symbol) throw new Error("Symbol is required.");
 
+      if (!toTime) {
+        throw new Error(
+          `${getDynamicTimestampLabel(
+            inputs.status
+          )} is required. Format: YYYY-MM-DD HH:MM:SS`
+        );
+      }
+
+      // 'placed_at_utc' gerekliliği kontrolü (sadece 'mark_not_reached' için)
       if (
         macroId === "mark_not_reached_user_checked_last" &&
-        !inputs.placed_at_utc
+        !effectiveInputs.placed_at_utc
       ) {
         throw new Error(
           "Placed At (UTC) is required for this macro. Format: YYYY-MM-DD HH:MM:SS"
@@ -74,20 +125,22 @@ export default function App() {
 
       let prices = {};
 
+      // Fiyat çekme mantığı hala makroya özel
       if (macroId === "mark_not_reached_user_checked_last") {
         const range = await getRangeHighLow(
-          inputs.symbol,
-          inputs.placed_at_utc,
-          inputs.triggered_at_utc
+          effectiveInputs.symbol,
+          effectiveInputs.placed_at_utc,
+          toTime
         );
         if (!range) throw new Error("No data found for this range.");
         prices = range;
       } else {
+        // Diğer makrolar (loss_higher_than_expected...)
         const { mark, last } = await getTriggerMinuteCandles(
-          inputs.symbol,
-          inputs.triggered_at_utc
+          effectiveInputs.symbol,
+          toTime
         );
-        const tMinute = new Date(msMinuteStartUTC(inputs.triggered_at_utc))
+        const tMinute = new Date(msMinuteStartUTC(toTime))
           .toISOString()
           .slice(0, 16)
           .replace("T", " ");
@@ -113,7 +166,7 @@ export default function App() {
         }
       }
 
-      const msg = renderMacro(macroId, inputs, prices, mode);
+      const msg = renderMacro(macroId, effectiveInputs, prices, mode);
       setResult(msg);
       setTimeout(
         () => outRef.current?.scrollIntoView({ behavior: "smooth" }),
@@ -134,6 +187,83 @@ export default function App() {
     btn.textContent = "Copied! (Markdown-ready for chat)";
     setTimeout(() => (btn.textContent = old), 1500);
   }
+
+  // ✅ GÜNCELLENDİ: Dinamik etiket ve 'timestamp' alanı için özel değer
+  const timestampLabel = getDynamicTimestampLabel(inputs.status);
+  const timestampValue =
+    inputs.status === "OPEN"
+      ? "(Auto-populates on Generate)"
+      : inputs.triggered_at_utc;
+
+  // Dinamik form render etme fonksiyonu
+  const renderFormField = (field) => {
+    const value = inputs[field.name] ?? ""; // Null/undefined kontrolü
+
+    // ✅ Özel Durum: Dinamik 'timestamp' alanı
+    if (field.name === "triggered_at_utc") {
+      return (
+        <div className={`col-${field.col || 6}`} key={field.name}>
+          <label className="label">{timestampLabel}</label>
+          <input
+            className="input"
+            value={timestampValue}
+            onChange={(e) => onChange(field.name, e.target.value)}
+            placeholder={field.placeholder}
+            disabled={inputs.status === "OPEN"} // Sadece OPEN iken kilitli
+          />
+          <div className="helper">
+            {inputs.status === "OPEN"
+              ? "For 'OPEN' orders, we check the range from 'Placed At' to the current time."
+              : `Enter the time the order was ${inputs.status.toLowerCase()}.`}
+          </div>
+        </div>
+      );
+    }
+
+    // ✅ Normal Durum: Select (Dropdown)
+    if (field.type === "select") {
+      return (
+        <div className={`col-${field.col || 6}`} key={field.name}>
+          <label className="label">{field.label}</label>
+          <select
+            className="select"
+            value={value}
+            onChange={(e) => onChange(field.name, e.target.value)}
+            disabled={field.locked}
+          >
+            {field.options.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // ✅ Normal Durum: Text (Input)
+    return (
+      <div className={`col-${field.col || 6}`} key={field.name}>
+        <label className="label">{field.label}</label>
+        <input
+          className="input"
+          type={field.type}
+          value={value}
+          onChange={(e) =>
+            onChange(
+              field.name,
+              // Symbol ise otomatik büyük harf yap
+              field.name === "symbol"
+                ? e.target.value.toUpperCase()
+                : e.target.value
+            )
+          }
+          placeholder={field.placeholder}
+          disabled={field.locked}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="container">
@@ -181,8 +311,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* Output Mode */}
-            <div className="col-6">
+            <div className="col-12">
               <label className="label">Output Mode</label>
               <select
                 className="select"
@@ -194,108 +323,9 @@ export default function App() {
               </select>
             </div>
 
-            {/* New Order of Inputs */}
-            <div className="col-6">
-              <label className="label">Symbol</label>
-              <input
-                className="input"
-                value={inputs.symbol}
-                onChange={(e) =>
-                  onChange("symbol", e.target.value.toUpperCase())
-                }
-                placeholder="ETHUSDT"
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Order ID</label>
-              <input
-                className="input"
-                value={inputs.order_id}
-                onChange={(e) => onChange("order_id", e.target.value)}
-                placeholder="8389..."
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Side</label>
-              <select
-                className="select"
-                value={inputs.side}
-                onChange={(e) => onChange("side", e.target.value)}
-              >
-                <option value="SELL">SELL</option>
-                <option value="BUY">BUY</option>
-              </select>
-            </div>
-
-            <div className="col-6">
-              <label className="label">Placed At (UTC, YYYY-MM-DD HH:MM:SS)</label>
-              <input
-                className="input"
-                value={inputs.placed_at_utc}
-                onChange={(e) => onChange("placed_at_utc", e.target.value)}
-                placeholder="2025-09-11 06:53:08"
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Trigger Type</label>
-              <input
-                className="input"
-                value={inputs.trigger_type}
-                onChange={(e) => onChange("trigger_type", e.target.value)}
-                placeholder="Mark or Last"
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Trigger Price</label>
-              <input
-                className="input"
-                value={inputs.trigger_price}
-                onChange={(e) => onChange("trigger_price", e.target.value)}
-                placeholder="e.g. 4393.00"
-              />
-            </div>
-
-            <div className="col-12">
-              <label className="label">Triggered At (UTC, YYYY-MM-DD HH:MM:SS)</label>
-              <input
-                className="input"
-                value={inputs.triggered_at_utc}
-                onChange={(e) => onChange("triggered_at_utc", e.target.value)}
-                placeholder="2025-09-11 12:30:18"
-              />
-              <div className="helper">
-                We’ll fetch the 1-minute candle or range that contains this
-                timestamp.
-              </div>
-            </div>
-
-            <div className="col-6">
-              <label className="label">Executed Price</label>
-              <input
-                className="input"
-                value={inputs.executed_price}
-                onChange={(e) => onChange("executed_price", e.target.value)}
-                placeholder="e.g. 4331.67"
-              />
-            </div>
-
-            <div className="col-6">
-              <label className="label">Status</label>
-              <select
-                className="select"
-                value={inputs.status}
-                onChange={(e) => onChange("status", e.target.value)}
-              >
-                <option value="OPEN">OPEN</option>
-                <option value="CANCELED">CANCELED</option>
-                <option value="TRIGGERED">TRIGGERED</option>
-                <option value="EXECUTED">EXECUTED</option>
-              </select>
-            </div>
+            {/* ✅ YENİ: Dinamik Form Alanı */}
+            {activeMacro && activeMacro.formConfig.map(renderFormField)}
+            {/* ✅ BİTİŞ: Dinamik Form Alanı */}
 
             <div className="col-12">
               <button
