@@ -2,6 +2,7 @@
 import { fmtNum, upper, statusLineFriendly } from "./helpers";
 
 function buildSideAwareBlock(inputs, prices) {
+  // ... (içerik değişmedi, gizlendi)
   const side = upper(inputs.side);
   const trig = Number(inputs.trigger_price);
 
@@ -79,19 +80,75 @@ export const stopMarketMarkNotReached = {
   id: "mark_not_reached_user_checked_last",
   title: "Stop-Market · Mark Price Not Reached (User Checks Last Price)",
   price_required: "both",
-  fields: [
-    "order_id",
-    "symbol",
-    "side",
-    "placed_at_utc",
-    "triggered_at_utc",
-    "trigger_type",
-    "trigger_price",
-    "executed_price",
-    "status"
+  
+  // ✅ YENİ: Form Yapılandırması
+  formConfig: [
+    {
+      name: "order_id",
+      label: "Order ID",
+      type: "text",
+      placeholder: "8389...",
+      col: 6
+    },
+    {
+      name: "status",
+      label: "Status",
+      type: "select",
+      options: ["OPEN", "CANCELED", "EXPIRED"],
+      defaultValue: "OPEN",
+      col: 6
+    },
+    {
+      name: "symbol",
+      label: "Symbol",
+      type: "text",
+      placeholder: "ETHUSDT",
+      defaultValue: "ETHUSDT",
+      col: 6
+    },
+    {
+      name: "side",
+      label: "Side",
+      type: "select",
+      options: ["SELL", "BUY"],
+      defaultValue: "SELL",
+      col: 6
+    },
+    {
+      name: "placed_at_utc",
+      label: "Placed At (UTC, YYYY-MM-DD HH:MM:SS)",
+      type: "text",
+      placeholder: "2025-09-11 06:53:08",
+      col: 6
+    },
+    {
+      name: "trigger_type",
+      label: "Trigger Type",
+      type: "text",
+      defaultValue: "MARK",
+      locked: true, // Bu makro sadece MARK içindir
+      col: 6
+    },
+    {
+      name: "trigger_price",
+      label: "Trigger Price",
+      type: "text",
+      placeholder: "e.g. 4393.00",
+      col: 6
+    },
+    {
+      name: "triggered_at_utc", // App.jsx bu adı özel olarak ele alır
+      label: "Timestamp (UTC, YYYY-MM-DD HH:MM:SS)", // App.jsx bu etiketi ezecek
+      type: "text",
+      placeholder: "2025-09-11 12:30:18",
+      col: 12 // Bu alan dinamik olduğu için tam genişlik
+    }
+    // "executed_price" bu makroda gerekli değil, o yüzden listede yok
   ],
+
   templates: {
     detailed: ({ inputs, prices }) => {
+      // ... (içerik değişmedi, gizlendi)
       const stillOpen = upper(inputs.status) === "OPEN" && !inputs.executed_price;
       const statusLine = statusLineFriendly(inputs);
       const { table, explanation } = buildSideAwareBlock(inputs, prices);
@@ -107,9 +164,7 @@ ${inputs.placed_at_utc} UTC+0 = At this date and time you placed a Stop-Market o
 
 ${statusLine}${inputs.executed_price ? `\n**Executed Price:** ${inputs.executed_price}` : ""}  
 
-When we check the **${inputs.symbol} Price Chart**  
-
-From: ${inputs.placed_at_utc} UTC+0  
+When we check the **${inputs.symbol} Price Chart** From: ${inputs.placed_at_utc} UTC+0  
 To: ${inputs.triggered_at_utc} UTC+0  
 
 ${table}  
@@ -118,14 +173,13 @@ ${explanation}${stillOpen ? `
 
 ⚠️ *Please note: this order is still OPEN and may trigger in the future if Mark Price crosses the trigger price.*` : ""}  
 
-*The experienced traders who are aware of this difference use **Mark Price** near liquidation risk, while they may choose **Last Price** for faster moves like take-profit.*  
-
-[Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)  
+*The experienced traders who are aware of this difference use **Mark Price** near liquidation risk, while they may choose **Last Price** for faster moves like take-profit.* [Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)  
 
 Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
       );
     },
     summary: ({ inputs, prices }) => {
+      // ... (içerik değişmedi, gizlendi)
       const statusLine = statusLineFriendly(inputs);
       const side = upper(inputs.side);
       let lines = [];
