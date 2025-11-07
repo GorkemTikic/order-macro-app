@@ -11,12 +11,13 @@ export const MACROS = [
   stopMarketLossHigherThanExpectedLastPrice
 ];
 
+// ✅ GÜNCELLENDİ: 'fields' yerine 'formConfig' aktarılıyor
 export const listMacros = () =>
-  MACROS.map(({ id, title, price_required, fields }) => ({
+  MACROS.map(({ id, title, price_required, formConfig }) => ({
     id,
     title,
     price_required,
-    fields
+    formConfig // App.jsx'in formu oluşturması için
   }));
 
 export function renderMacro(macroId, inputs, prices, mode = "detailed") {
