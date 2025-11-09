@@ -10,7 +10,6 @@ import {
 import PriceLookup from "./components/PriceLookup";
 import FundingMacro from "./components/FundingMacro";
 
-// ✅ GÜNCELLENDİ: initialInputs tüm olası alanlar için bir temel sağlar
 const initialInputs = {
   order_id: "",
   symbol: "ETHUSDT",
@@ -23,7 +22,6 @@ const initialInputs = {
   status: "OPEN"
 };
 
-// ✅ GÜNCELLENDİ: Etiket fonksiyonu 'EXECUTED' durumunu daha iyi ele alıyor
 function getDynamicTimestampLabel(status) {
   switch (status) {
     case "OPEN":
@@ -67,24 +65,22 @@ export default function App() {
     }
   }, [macros, macroId]);
 
-  // ✅ YENİ: Makro değiştikçe, formun varsayılan değerlerini ayarla
   useEffect(() => {
     if (!activeMacro) return;
-
-    // 1. Yeni makronun formConfig'inden varsayılanları al
     const newDefaults = {};
     activeMacro.formConfig.forEach((field) => {
       if (field.defaultValue !== undefined) {
         newDefaults[field.name] = field.defaultValue;
       }
     });
-
-    // 2. Mevcut inputları koruyarak (örn. 'symbol' veya 'order_id') yenilerini ayarla
     setInputs((prev) => ({
-      ...prev, // 'symbol' gibi ortak alanları koru
-      ...newDefaults // 'status' ve 'trigger_type' gibi kilitli alanları ez
+      ...initialInputs, // ✅ ÖNEMLİ: Formu sıfırla ki eski makrodan 'executed_price' gibi alanlar kalmasın
+      ...newDefaults, // Sadece yeni makronun varsayılanlarını uygula
+      // Kasıtlı olarak korunacak alanlar:
+      symbol: prev.symbol,
+      order_id: prev.order_id
     }));
-  }, [activeMacro]); // Sadece 'activeMacro' değiştiğinde çalışır
+  }, [activeMacro]);
 
   const onChange = (k, v) => setInputs((prev) => ({ ...prev, [k]: v }));
 
@@ -113,7 +109,6 @@ export default function App() {
         );
       }
 
-      // 'placed_at_utc' gerekliliği kontrolü (sadece 'mark_not_reached' için)
       if (
         macroId === "mark_not_reached_user_checked_last" &&
         !effectiveInputs.placed_at_utc
@@ -124,8 +119,8 @@ export default function App() {
       }
 
       let prices = {};
+      const priceSource = activeMacro.price_required;
 
-      // Fiyat çekme mantığı hala makroya özel
       if (macroId === "mark_not_reached_user_checked_last") {
         const range = await getRangeHighLow(
           effectiveInputs.symbol,
@@ -135,7 +130,7 @@ export default function App() {
         if (!range) throw new Error("No data found for this range.");
         prices = range;
       } else {
-        // Diğer makrolar (loss_higher_than_expected...)
+        // Diğer tüm makrolar (Stop Loss, Take Profit) 1 dakikalık mum kullanır
         const { mark, last } = await getTriggerMinuteCandles(
           effectiveInputs.symbol,
           toTime
@@ -145,24 +140,16 @@ export default function App() {
           .slice(0, 16)
           .replace("T", " ");
 
-        if (macroId === "stop_market_loss_higher_than_expected_mark_price") {
+        // ✅ DÜZELTME: Fiyatları makronun 'price_required' ihtiyacına göre paketle
+        if (priceSource === "both") {
+          // Hem Mark hem Last bekleyen makrolar
           prices = { triggered_minute: tMinute, mark, last };
-        } else if (
-          macroId === "stop_market_loss_higher_than_expected_last_price"
-        ) {
+        } else if (priceSource === "last") {
+          // Sadece Last bekleyen makrolar
           prices = { triggered_minute: tMinute, last };
         } else {
-          prices = {
-            triggered_minute: tMinute,
-            mark_open: mark ? mark.open.toFixed(8) : "N/A",
-            mark_high: mark ? mark.high.toFixed(8) : "N/A",
-            mark_low: mark ? mark.low.toFixed(8) : "N/A",
-            mark_close: mark ? mark.close.toFixed(8) : "N/A",
-            last_open: last ? last.open.toFixed(8) : "N/A",
-            last_high: last ? last.high.toFixed(8) : "N/A",
-            last_low: last ? last.low.toFixed(8) : "N/A",
-            last_close: last ? last.close.toFixed(8) : "N/A"
-          };
+          // Eski 'else' bloğu kaldırıldı (hataya neden olan blok)
+          prices = { triggered_minute: tMinute, mark, last }; // Güvenli varsayılan
         }
       }
 
@@ -188,18 +175,14 @@ export default function App() {
     setTimeout(() => (btn.textContent = old), 1500);
   }
 
-  // ✅ GÜNCELLENDİ: Dinamik etiket ve 'timestamp' alanı için özel değer
   const timestampLabel = getDynamicTimestampLabel(inputs.status);
   const timestampValue =
     inputs.status === "OPEN"
       ? "(Auto-populates on Generate)"
       : inputs.triggered_at_utc;
 
-  // Dinamik form render etme fonksiyonu
   const renderFormField = (field) => {
-    const value = inputs[field.name] ?? ""; // Null/undefined kontrolü
-
-    // ✅ Özel Durum: Dinamik 'timestamp' alanı
+    // Dinamik 'timestamp' alanı
     if (field.name === "triggered_at_utc") {
       return (
         <div className={`col-${field.col || 6}`} key={field.name}>
@@ -209,7 +192,7 @@ export default function App() {
             value={timestampValue}
             onChange={(e) => onChange(field.name, e.target.value)}
             placeholder={field.placeholder}
-            disabled={inputs.status === "OPEN"} // Sadece OPEN iken kilitli
+            disabled={inputs.status === "OPEN"}
           />
           <div className="helper">
             {inputs.status === "OPEN"
@@ -220,7 +203,9 @@ export default function App() {
       );
     }
 
-    // ✅ Normal Durum: Select (Dropdown)
+    const value = inputs[field.name] ?? "";
+
+    // Select (Dropdown)
     if (field.type === "select") {
       return (
         <div className={`col-${field.col || 6}`} key={field.name}>
@@ -241,7 +226,7 @@ export default function App() {
       );
     }
 
-    // ✅ Normal Durum: Text (Input)
+    // Text (Input)
     return (
       <div className={`col-${field.col || 6}`} key={field.name}>
         <label className="label">{field.label}</label>
@@ -252,7 +237,6 @@ export default function App() {
           onChange={(e) =>
             onChange(
               field.name,
-              // Symbol ise otomatik büyük harf yap
               field.name === "symbol"
                 ? e.target.value.toUpperCase()
                 : e.target.value
@@ -323,9 +307,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* ✅ YENİ: Dinamik Form Alanı */}
             {activeMacro && activeMacro.formConfig.map(renderFormField)}
-            {/* ✅ BİTİŞ: Dinamik Form Alanı */}
 
             <div className="col-12">
               <button
