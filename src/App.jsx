@@ -16,26 +16,36 @@ const initialInputs = {
   side: "SELL",
   trigger_type: "MARK",
   trigger_price: "",
+  limit_price: "", // Stop-Limit için
   executed_price: "",
   placed_at_utc: "",
-  triggered_at_utc: "",
+  triggered_at_utc: "", // Gerçekleşen emirler (SL/TP) ve Stop-Limit tetiklenme zamanı için
+  final_status_utc: "", // Gerçekleşmeyen emirler (Not Reached, Stop-Limit) için
   status: "OPEN"
 };
 
-function getDynamicTimestampLabel(status) {
+// Dinamik zaman damgası etiketleri
+function getDynamicTimestampLabel(fieldName, status) {
+  if (fieldName === "final_status_utc") {
+    switch (status) {
+      case "OPEN":
+        return "To (UTC, YYYY-MM-DD HH:MM:SS)";
+      case "CANCELED":
+        return "Canceled At (UTC, YYYY-MM-DD HH:MM:SS)";
+      case "EXPIRED":
+        return "Expired At (UTC, YYYY-MM-DD HH:MM:SS)";
+      default:
+        return "Final Status At (UTC)";
+    }
+  }
+  // (fieldName === 'triggered_at_utc')
   switch (status) {
-    case "OPEN":
-      return "To (UTC, YYYY-MM-DD HH:MM:SS)";
-    case "CANCELED":
-      return "Canceled At (UTC, YYYY-MM-DD HH:MM:SS)";
-    case "EXPIRED":
-      return "Expired At (UTC, YYYY-MM-DD HH:MM:SS)";
-    case "TRIGGERED":
-      return "Triggered At (UTC, YYYY-MM-DD HH:MM:SS)";
     case "EXECUTED":
       return "Executed At (UTC, YYYY-MM-DD HH:MM:SS)";
+    case "TRIGGERED":
+      return "Triggered At (UTC, YYYY-MM-DD HH:MM:SS)";
     default:
-      return "Timestamp (UTC, YYYY-MM-DD HH:MM:SS)";
+      return "Triggered/Executed At (UTC)";
   }
 }
 
@@ -65,6 +75,7 @@ export default function App() {
     }
   }, [macros, macroId]);
 
+  // Makro değiştikçe, formun varsayılan değerlerini ayarla
   useEffect(() => {
     if (!activeMacro) return;
     const newDefaults = {};
@@ -74,9 +85,8 @@ export default function App() {
       }
     });
     setInputs((prev) => ({
-      ...initialInputs, // ✅ ÖNEMLİ: Formu sıfırla ki eski makrodan 'executed_price' gibi alanlar kalmasın
-      ...newDefaults, // Sadece yeni makronun varsayılanlarını uygula
-      // Kasıtlı olarak korunacak alanlar:
+      ...initialInputs,
+      ...newDefaults,
       symbol: prev.symbol,
       order_id: prev.order_id
     }));
@@ -90,66 +100,83 @@ export default function App() {
     setResult("");
 
     let effectiveInputs = { ...inputs };
-    let toTime = inputs.triggered_at_utc;
+    
+    // Hangi makronun hangi zaman damgasını kullandığını belirle
+    const usesFinalStatusTime = macroId.includes("not_reached") || macroId.includes("stop_limit");
+    const usesTriggerTime = !usesFinalStatusTime; // SL/TP Slippage makroları
 
+    let rangeEndTime = inputs.final_status_utc;
+    let triggerCandleTime = inputs.triggered_at_utc;
+
+    // 'OPEN' durumu için son zamanı ayarla
     if (inputs.status === "OPEN") {
-      toTime = new Date().toISOString().slice(0, 19).replace("T", " ");
-      effectiveInputs.triggered_at_utc = toTime;
+      const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+      if (usesFinalStatusTime) {
+        rangeEndTime = now;
+        effectiveInputs.final_status_utc = now;
+      }
     }
 
     try {
       if (!activeMacro) throw new Error("Select a macro.");
       if (!effectiveInputs.symbol) throw new Error("Symbol is required.");
 
-      if (!toTime) {
-        throw new Error(
-          `${getDynamicTimestampLabel(
-            inputs.status
-          )} is required. Format: YYYY-MM-DD HH:MM:SS`
+      // Zaman damgası gerekliliklerini doğrula
+      if (usesFinalStatusTime && !rangeEndTime) {
+         throw new Error(
+          `Final Status At (Open/Canceled/Expired) is required. Format: YYYY-MM-DD HH:MM:SS`
+        );
+      }
+      if (usesTriggerTime && !triggerCandleTime) {
+           throw new Error(
+          `Triggered/Executed At is required. Format: YYYY-MM-DD HH:MM:SS`
+        );
+      }
+      if (macroId.includes("stop_limit") && !inputs.triggered_at_utc) {
+         throw new Error(
+          `Triggered At (Stop Price Hit) is required for Stop-Limit. Format: YYYY-MM-DD HH:MM:SS`
+        );
+      }
+       if (macroId.includes("not_reached") && !inputs.placed_at_utc) {
+         throw new Error(
+          `Placed At (UTC) is required for this macro. Format: YYYY-MM-DD HH:MM:SS`
         );
       }
 
-      if (
-        macroId === "mark_not_reached_user_checked_last" &&
-        !effectiveInputs.placed_at_utc
-      ) {
-        throw new Error(
-          "Placed At (UTC) is required for this macro. Format: YYYY-MM-DD HH:MM:SS"
-        );
-      }
 
       let prices = {};
       const priceSource = activeMacro.price_required;
 
-      if (macroId === "mark_not_reached_user_checked_last") {
+      // 'Not Reached' makrosu bir fiyat aralığı (range) çeker
+      if (macroId.includes("not_reached")) {
         const range = await getRangeHighLow(
           effectiveInputs.symbol,
           effectiveInputs.placed_at_utc,
-          toTime
+          rangeEndTime // 'placed_at' ile 'final_status' arası
         );
         if (!range) throw new Error("No data found for this range.");
         prices = range;
       } else {
-        // Diğer tüm makrolar (Stop Loss, Take Profit) 1 dakikalık mum kullanır
+        // Diğer tüm makrolar (SL, TP, Stop-Limit) tetiklenme anındaki (triggered_at_utc) 1m mumunu çeker
         const { mark, last } = await getTriggerMinuteCandles(
           effectiveInputs.symbol,
-          toTime
+          inputs.triggered_at_utc // Tetiklenme anı mumu
         );
-        const tMinute = new Date(msMinuteStartUTC(toTime))
+        const tMinute = new Date(msMinuteStartUTC(inputs.triggered_at_utc))
           .toISOString()
           .slice(0, 16)
           .replace("T", " ");
 
-        // ✅ DÜZELTME: Fiyatları makronun 'price_required' ihtiyacına göre paketle
+        // ✅ N/A DÜZELTMESİ:
+        // Fiyatları her zaman {mark, last} objeleri olarak paketle,
+        // makronun 'price_required' ihtiyacına göre.
         if (priceSource === "both") {
-          // Hem Mark hem Last bekleyen makrolar
           prices = { triggered_minute: tMinute, mark, last };
         } else if (priceSource === "last") {
-          // Sadece Last bekleyen makrolar
           prices = { triggered_minute: tMinute, last };
         } else {
-          // Eski 'else' bloğu kaldırıldı (hataya neden olan blok)
-          prices = { triggered_minute: tMinute, mark, last }; // Güvenli varsayılan
+          // Güvenli varsayılan (veya hata)
+          prices = { triggered_minute: tMinute, mark, last };
         }
       }
 
@@ -175,46 +202,44 @@ export default function App() {
     setTimeout(() => (btn.textContent = old), 1500);
   }
 
-  const timestampLabel = getDynamicTimestampLabel(inputs.status);
-  const timestampValue =
-    inputs.status === "OPEN"
-      ? "(Auto-populates on Generate)"
-      : inputs.triggered_at_utc;
 
+  // Formu dinamik olarak render et
   const renderFormField = (field) => {
-    // Dinamik 'timestamp' alanı
-    if (field.name === "triggered_at_utc") {
-      return (
-        <div className={`col-${field.col || 6}`} key={field.name}>
-          <label className="label">{timestampLabel}</label>
-          <input
-            className="input"
-            value={timestampValue}
-            onChange={(e) => onChange(field.name, e.target.value)}
-            placeholder={field.placeholder}
-            disabled={inputs.status === "OPEN"}
-          />
-          <div className="helper">
-            {inputs.status === "OPEN"
-              ? "For 'OPEN' orders, we check the range from 'Placed At' to the current time."
-              : `Enter the time the order was ${inputs.status.toLowerCase()}.`}
-          </div>
-        </div>
-      );
-    }
+    let value = inputs[field.name] ?? "";
+    let label = field.label;
+    let placeholder = field.placeholder;
+    let isDisabled = field.locked;
+    let helperText = field.helper;
 
-    const value = inputs[field.name] ?? "";
+    // ✅ YENİ: İki dinamik zaman damgası alanını da ele al
+    
+    // 1. Gerçekleşen (Executed) emirler için
+    if (field.name === "triggered_at_utc" && !macroId.includes("stop_limit")) {
+      label = getDynamicTimestampLabel(field.name, inputs.status);
+    }
+    
+    // 2. Gerçekleşmeyen (Not Filled) emirler için
+    if (field.name === "final_status_utc") {
+      label = getDynamicTimestampLabel(field.name, inputs.status);
+      if (inputs.status === "OPEN") {
+        value = "(Auto-populates on Generate)";
+        isDisabled = true;
+      }
+      helperText = (inputs.status === "OPEN")
+        ? "For 'OPEN' orders, we check from 'Placed At' to the current time."
+        : `Enter the time the order was ${inputs.status.toLowerCase()}.`;
+    }
 
     // Select (Dropdown)
     if (field.type === "select") {
       return (
         <div className={`col-${field.col || 6}`} key={field.name}>
-          <label className="label">{field.label}</label>
+          <label className="label">{label}</label>
           <select
             className="select"
             value={value}
             onChange={(e) => onChange(field.name, e.target.value)}
-            disabled={field.locked}
+            disabled={isDisabled}
           >
             {field.options.map((opt) => (
               <option key={opt} value={opt}>
@@ -229,7 +254,7 @@ export default function App() {
     // Text (Input)
     return (
       <div className={`col-${field.col || 6}`} key={field.name}>
-        <label className="label">{field.label}</label>
+        <label className="label">{label}</label>
         <input
           className="input"
           type={field.type}
@@ -242,9 +267,10 @@ export default function App() {
                 : e.target.value
             )
           }
-          placeholder={field.placeholder}
-          disabled={field.locked}
+          placeholder={placeholder}
+          disabled={isDisabled}
         />
+        {helperText && <div className="helper">{helperText}</div>}
       </div>
     );
   };
