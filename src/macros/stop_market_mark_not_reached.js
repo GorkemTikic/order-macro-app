@@ -130,7 +130,6 @@ export const stopMarketMarkNotReached = {
       col: 6
     },
     {
-      // ✅ TÜM HATALAR DÜZELTİLDİ: 'name:g:' veya 'name:g' DEĞİL.
       name: "trigger_price",
       label: "Trigger Price",
       type: "text",
