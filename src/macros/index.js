@@ -4,9 +4,9 @@ import { stopMarketLossHigherThanExpectedMarkPrice } from "./stop_market_loss_hi
 import { stopMarketLossHigherThanExpectedLastPrice } from "./stop_market_loss_higher_than_expected_last_price";
 import { takeProfitSlippageMarkPrice } from "./take_profit_slippage_mark_price";
 import { takeProfitSlippageLastPrice } from "./take_profit_slippage_last_price";
-// ✅ YENİ İMPORTLAR
-import { stopLimitMarkPriceNotFilled } from "./stop_limit_mark_price.js";
-import { stopLimitLastPriceNotFilled } from "./stop_limit_last_price.js";
+// ✅ YENİ İMPORTLAR (ve .js uzantıları tutarlılık için kaldırıldı)
+import { stopLimitMarkPriceNotFilled } from "./stop_limit_mark_price";
+import { stopLimitLastPriceNotFilled } from "./stop_limit_last_price";
 
 import { fundingMacro } from "./funding_macro"; // normal import
 
@@ -31,7 +31,7 @@ export const listMacros = () =>
 
 export function renderMacro(macroId, inputs, prices, mode = "detailed") {
   if (macroId === "funding_macro") {
-    const tpl = fundingMacro.templates?.[mode];
+    const tpl = fundingMacro?.templates?.[mode]; // (Güvenlik için '?' eklendi)
     if (!tpl)
       throw new Error(`Template for mode "${mode}" not found in funding_macro`);
     return tpl({ inputs, prices });
