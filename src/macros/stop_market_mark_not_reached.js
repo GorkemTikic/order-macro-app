@@ -177,7 +177,7 @@ ${explanation}${
           : ""
       }  
 
-*Experienced traders often use **Mark Price** for stop-orders near liquidation risk, while they may choose **Last Price** for entry or take-profit orders.* [Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/5704082076024731087)  
+*Experienced traders often use **Mark Price** for stop-orders near liquidation risk, while they may choose **Last Price** for entry or take-profit orders.* [Mark Price vs. Last Price on Binance Futures – What’s the Difference?](https://www.binance.com/blog/futures/what-is-the-difference-between-a-futures-contracts-last-price-and-mark-price-5704082076024731087)  
 
 Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`;
     },
