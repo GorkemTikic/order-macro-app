@@ -130,7 +130,7 @@ export const stopMarketMarkNotReached = {
       col: 6
     },
     {
-      // ✅ HATA DÜZELTİLDİ: 'name:g:' hatası 'name:' olarak düzeltildi.
+      // ✅ TÜM HATALAR DÜZELTİLDİ: 'name:g:' ve 'name:g' hataları 'name:' oldu
       name: "trigger_price",
       label: "Trigger Price",
       type: "text",
