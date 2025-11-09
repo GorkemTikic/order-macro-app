@@ -2,9 +2,11 @@
 import { stopMarketMarkNotReached } from "./stop_market_mark_not_reached";
 import { stopMarketLossHigherThanExpectedMarkPrice } from "./stop_market_loss_higher_than_expected_mark_price";
 import { stopMarketLossHigherThanExpectedLastPrice } from "./stop_market_loss_higher_than_expected_last_price";
-// ✅ YENİ İMPORTLAR
 import { takeProfitSlippageMarkPrice } from "./take_profit_slippage_mark_price";
 import { takeProfitSlippageLastPrice } from "./take_profit_slippage_last_price";
+// ✅ YENİ İMPORTLAR
+import { stopLimitMarkPriceNotFilled } from "./stop_limit_mark_price.js";
+import { stopLimitLastPriceNotFilled } from "./stop_limit_last_price.js";
 
 import { fundingMacro } from "./funding_macro"; // normal import
 
@@ -14,7 +16,9 @@ export const MACROS = [
   stopMarketLossHigherThanExpectedMarkPrice,
   stopMarketLossHigherThanExpectedLastPrice,
   takeProfitSlippageMarkPrice,
-  takeProfitSlippageLastPrice
+  takeProfitSlippageLastPrice,
+  stopLimitMarkPriceNotFilled,
+  stopLimitLastPriceNotFilled
 ];
 
 export const listMacros = () =>
