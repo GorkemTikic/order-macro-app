@@ -2,22 +2,27 @@
 import { stopMarketMarkNotReached } from "./stop_market_mark_not_reached";
 import { stopMarketLossHigherThanExpectedMarkPrice } from "./stop_market_loss_higher_than_expected_mark_price";
 import { stopMarketLossHigherThanExpectedLastPrice } from "./stop_market_loss_higher_than_expected_last_price";
+// ✅ YENİ İMPORTLAR
+import { takeProfitSlippageMarkPrice } from "./take_profit_slippage_mark_price";
+import { takeProfitSlippageLastPrice } from "./take_profit_slippage_last_price";
+
 import { fundingMacro } from "./funding_macro"; // normal import
 
-// Funding Macro intentionally excluded from MACROS list
+// ✅ YENİ MAKROLAR EKLENDİ
 export const MACROS = [
   stopMarketMarkNotReached,
   stopMarketLossHigherThanExpectedMarkPrice,
-  stopMarketLossHigherThanExpectedLastPrice
+  stopMarketLossHigherThanExpectedLastPrice,
+  takeProfitSlippageMarkPrice,
+  takeProfitSlippageLastPrice
 ];
 
-// ✅ GÜNCELLENDİ: 'fields' yerine 'formConfig' aktarılıyor
 export const listMacros = () =>
   MACROS.map(({ id, title, price_required, formConfig }) => ({
     id,
     title,
     price_required,
-    formConfig // App.jsx'in formu oluşturması için
+    formConfig
   }));
 
 export function renderMacro(macroId, inputs, prices, mode = "detailed") {
