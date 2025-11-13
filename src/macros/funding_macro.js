@@ -1,3 +1,4 @@
+// src/macros/funding_macro.js
 import { fmtNum } from "./helpers";
 
 function decideSides(fundingRateNum) {
@@ -12,7 +13,6 @@ function decideSides(fundingRateNum) {
   }
 }
 
-// 📌 Funding rate UI precision ile truncate
 function formatFundingRatePct(fundingRateStr) {
   const rateNum = parseFloat(fundingRateStr);
   const rawPct = rateNum * 100;
@@ -22,61 +22,36 @@ function formatFundingRatePct(fundingRateStr) {
 
 export const fundingMacro = {
   id: "funding_macro",
-  title: "Funding Rate · Fee Calculation",
   price_required: "funding",
-  fields: [
-    "symbol",
-    "funding_time",
-    "funding_rate",   // string geliyor
-    "mark_price",
-    "position_size",
-    "funding_interval",
-    "price_dp",
-    "qty_dp"
-  ],
-  templates: {
-    detailed: ({ inputs }) => {
-      const {
-        symbol,
-        funding_time,
-        funding_rate, // string
-        mark_price,
-        position_size,
-        funding_interval,
-        qty_dp
-      } = inputs;
 
-      const rateNum = parseFloat(funding_rate);
-      const ratePctStr = formatFundingRatePct(funding_rate);
-      const mark = mark_price; // ✅ RAW string olarak bırak
-      const size = Number(position_size);
+  translations: {
+    en: {
+      title: "Funding Rate · Fee Calculation",
+      formConfig: null, // Form handled by FundingMacro.jsx
+      templates: {
+        detailed: ({ inputs }) => {
+          const { symbol, funding_time, funding_rate, mark_price, position_size, funding_interval, qty_dp } = inputs;
+          const rateNum = parseFloat(funding_rate);
+          const ratePctStr = formatFundingRatePct(funding_rate);
+          const mark = mark_price;
+          const size = Number(position_size);
+          const { payer, receiver } = decideSides(rateNum);
+          const notional = Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
+          const fundingFee = Number.isFinite(notional) && Number.isFinite(rateNum) ? notional * rateNum : NaN;
+          const userSide = payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Unknown";
 
-      const { payer, receiver } = decideSides(rateNum);
-
-      const notional =
-        Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
-      const fundingFee =
-        Number.isFinite(notional) && Number.isFinite(rateNum)
-          ? notional * rateNum
-          : NaN;
-
-      const userSide =
-        payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Unknown";
-
-      return (
+          return (
 `You can see the Funding Countdown and Current Funding Rate for each symbol/contract on the Futures Trading page.  
 
 When that countdown is finished (every ${funding_interval || 8} hours for ${symbol}) if you have any open positions, you get affected by the funding fee payment.  
 
 If the funding rate is **negative**, all open **Short** positions will pay funding fees to the **Long** position holders.  
-
 If the funding rate is **positive**, all open **Long** positions will pay funding fees to the **Short** position holders.  
 
 If we check the funding rate history:  
 [Funding Fee History](https://www.binance.com/en/futures/funding-history/perpetual/funding-fee-history)  
 
 We can see that on **${funding_time}**:  
-
 - **${symbol} Funding Rate:** ${ratePctStr}%  
 - **Mark Price:** ${mark} USDT  
 
@@ -86,49 +61,28 @@ Your position was a **${userSide}** position, so you had to pay it to ${receiver
 
 **Your Position Size:** ${fmtNum(size, qty_dp)} ${symbol}  
 
-**Calculation:**  
-- ${fmtNum(size, qty_dp)} × ${mark} = ${fmtNum(notional, 8)} USDT → Notional size of the position  
+**Calculation:** - ${fmtNum(size, qty_dp)} × ${mark} = ${fmtNum(notional, 8)} USDT → Notional size of the position  
 - ${fmtNum(notional, 8)} × ${ratePctStr}% = ${fmtNum(fundingFee, 8)} USDT → Funding fee payment from this position  
 
 For further details, you may check the official guide:  
-[Introduction to Binance Futures Funding Rates](https://www.binance.com/support/faq/detail/360033525031)
-[What Is Futures Funding Rate And Why It Matters](https://www.binance.com/blog/futures/what-is-futures-funding-rate-and-why-it-matters-421499824684903247)  
-  
+[Introduction to Binance Futures Funding Rates](https://www.binance.com/en/support/faq/introduction-to-binance-futures-funding-rates-360033525031)
+[What Is Futures Funding Rate And Why It Matters](https://www.binance.com/en/blog/futures/what-is-futures-funding-rate-and-why-it-matters-421499824684903247)  
 
-⚠️ *There is a 15-second deviation in the actual funding fee transaction time. For example, when you open a position at 08:00:05 UTC, the funding fee could still apply (you'll either pay or receive the funding fee).*  
+⚠️ *There is a 15-second deviation in the actual funding fee transaction time. For example, when you open a position at 08:00:05 UTC, the funding fee could still apply (you'll either pay or receive the funding fee).* Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
+          );
+        },
+        summary: ({ inputs }) => {
+          const { symbol, funding_time, funding_rate, mark_price, position_size, funding_interval, qty_dp } = inputs;
+          const rateNum = parseFloat(funding_rate);
+          const ratePctStr = formatFundingRatePct(funding_rate);
+          const mark = mark_price;
+          const size = Number(position_size);
+          const { payer } = decideSides(rateNum);
+          const notional = Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
+          const fundingFee = Number.isFinite(notional) && Number.isFinite(rateNum) ? notional * rateNum : NaN;
+          const userSide = payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Unknown";
 
-Hope this clarifies your queries 🙏 If you have any further questions, don’t hesitate to share them with me.`
-      );
-    },
-    summary: ({ inputs }) => {
-      const {
-        symbol,
-        funding_time,
-        funding_rate, // string
-        mark_price,
-        position_size,
-        funding_interval,
-        qty_dp
-      } = inputs;
-
-      const rateNum = parseFloat(funding_rate);
-      const ratePctStr = formatFundingRatePct(funding_rate);
-      const mark = mark_price; // ✅ RAW string
-      const size = Number(position_size);
-
-      const { payer } = decideSides(rateNum);
-
-      const notional =
-        Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
-      const fundingFee =
-        Number.isFinite(notional) && Number.isFinite(rateNum)
-          ? notional * rateNum
-          : NaN;
-
-      const userSide =
-        payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Unknown";
-
-      return (
+          return (
 `**Contract:** ${symbol}  
 **Funding Time (UTC+0):** ${funding_time}  
 **Funding Rate:** ${ratePctStr}%  
@@ -137,9 +91,82 @@ Hope this clarifies your queries 🙏 If you have any further questions, don’t
 
 **Position Size:** ${fmtNum(size, qty_dp)} ${symbol}  
 Notional: ${fmtNum(notional, 8)} USDT  
-Your position: **${userSide}**  
-Funding Fee: ${fmtNum(fundingFee, 8)} USDT`
-      );
+Your position: **${userSide}** Funding Fee: ${fmtNum(fundingFee, 8)} USDT`
+          );
+        }
+      }
+    },
+    tr: {
+      title: "Funding Oranı · Ücret Hesaplaması",
+      formConfig: null,
+      templates: {
+        detailed: ({ inputs }) => {
+          const { symbol, funding_time, funding_rate, mark_price, position_size, funding_interval, qty_dp } = inputs;
+          const rateNum = parseFloat(funding_rate);
+          const ratePctStr = formatFundingRatePct(funding_rate);
+          const mark = mark_price;
+          const size = Number(position_size);
+          const { payer, receiver } = decideSides(rateNum);
+          const notional = Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
+          const fundingFee = Number.isFinite(notional) && Number.isFinite(rateNum) ? notional * rateNum : NaN;
+          const userSide = payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Bilinmiyor";
+
+          return (
+`Vadeli İşlemler alım-satım sayfasında her bir sembol/sözleşme için Funding Geri Sayımını ve Güncel Funding Oranını görebilirsiniz.  
+
+Bu geri sayım sona erdiğinde (${symbol} için her ${funding_interval || 8} saatte bir), açık pozisyonunuz varsa funding ücreti ödemesinden etkilenirsiniz.  
+
+Eğer funding oranı **negatif** ise, tüm açık **Short (Kısa)** pozisyonlar, **Long (Uzun)** pozisyon sahiplerine funding ücreti öder.  
+Eğer funding oranı **pozitif** ise, tüm açık **Long (Uzun)** pozisyonlar, **Short (Kısa)** pozisyon sahiplerine funding ücreti öder.  
+
+Funding oranı geçmişini kontrol ettiğimde:  
+[Funding Ücreti Geçmişi](https://www.binance.com/en/futures/funding-history/perpetual/funding-fee-history)  
+
+**${funding_time}** tarihinde:  
+- **${symbol} Funding Oranı:** ${ratePctStr}%  
+- **Mark Price:** ${mark} USDT  
+
+Bu durumda, funding zamanında açık olan tüm **${payer}** pozisyonları, pozisyon büyüklüklerine göre **${receiver}** pozisyon sahiplerine funding ücreti ödemek zorundaydı.  
+
+Sizin pozisyonunuz bir **${userSide}** pozisyonuydu, bu yüzden ${receiver} pozisyon sahiplerine ödeme yapmanız gerekti.  
+
+**Pozisyon Büyüklüğünüz:** ${fmtNum(size, qty_dp)} ${symbol}  
+
+**Hesaplama:**
+- ${fmtNum(size, qty_dp)} × ${mark} = ${fmtNum(notional, 8)} USDT → Pozisyonun Nosyonal (İtibari) Büyüklüğü  
+- ${fmtNum(notional, 8)} × ${ratePctStr}% = ${fmtNum(fundingFee, 8)} USDT → Bu pozisyondan kaynaklanan funding ücreti ödemesi  
+
+Daha fazla detay için resmi rehberlerimizi inceleyebilirsiniz:  
+[Binance Vadeli İşlemler Funding Oranlarına Giriş](https://www.binance.com/en/support/faq/introduction-to-binance-futures-funding-rates-360033525031)
+[Vadeli İşlemler Funding Oranı Nedir ve Neden Önemlidir?](https://www.binance.com/en/blog/futures/what-is-futures-funding-rate-and-why-it-matters-421499824684903247)  
+
+⚠️ *Gerçek funding ücreti işlem saatinde 15 saniyelik bir sapma olabilir. Örneğin, 08:00:05 UTC'de bir pozisyon açtığınızda, funding ücreti yine de uygulanabilir (funding ücretini ya ödersiniz ya da alırsınız).* Umarım bu açıklama yardımcı olmuştur 🙏 Başka sorularınız olursa çekinmeden paylaşabilirsiniz.`
+          );
+        },
+        summary: ({ inputs }) => {
+          const { symbol, funding_time, funding_rate, mark_price, position_size, funding_interval, qty_dp } = inputs;
+          const rateNum = parseFloat(funding_rate);
+          const ratePctStr = formatFundingRatePct(funding_rate);
+          const mark = mark_price;
+          const size = Number(position_size);
+          const { payer } = decideSides(rateNum);
+          const notional = Number.isFinite(size) && Number.isFinite(Number(mark)) ? size * Number(mark) : NaN;
+          const fundingFee = Number.isFinite(notional) && Number.isFinite(rateNum) ? notional * rateNum : NaN;
+          const userSide = payer === "Long" ? "Long" : payer === "Short" ? "Short" : "Bilinmiyor";
+
+          return (
+`**Sözleşme:** ${symbol}  
+**Funding Zamanı (UTC+0):** ${funding_time}  
+**Funding Oranı:** ${ratePctStr}%  
+**Mark Price:** ${mark}  
+**Funding Aralığı:** Her ${funding_interval || 8} saatte bir  
+
+**Pozisyon Büyüklüğü:** ${fmtNum(size, qty_dp)} ${symbol}  
+Nosyonal Değer: ${fmtNum(notional, 8)} USDT  
+Pozisyonunuz: **${userSide}** Funding Ücreti: ${fmtNum(fundingFee, 8)} USDT`
+          );
+        }
+      }
     }
   }
 };
