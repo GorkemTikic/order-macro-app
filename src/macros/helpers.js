@@ -12,7 +12,7 @@ export function upper(s) {
   return (s || "").toString().trim().toUpperCase();
 }
 
-// ✅ GÜNCELLENDİ: Artık 'final_status_utc' veya 'triggered_at_utc'yi okur
+// Build user-friendly status line with timestamp
 export function statusLineFriendly(inputs) {
   const st = upper(inputs.status);
   
