@@ -4,13 +4,11 @@ import { stopMarketLossHigherThanExpectedMarkPrice } from "./stop_market_loss_hi
 import { stopMarketLossHigherThanExpectedLastPrice } from "./stop_market_loss_higher_than_expected_last_price";
 import { takeProfitSlippageMarkPrice } from "./take_profit_slippage_mark_price";
 import { takeProfitSlippageLastPrice } from "./take_profit_slippage_last_price";
-// ✅ YENİ İMPORTLAR (ve .js uzantıları tutarlılık için kaldırıldı)
 import { stopLimitMarkPriceNotFilled } from "./stop_limit_mark_price";
 import { stopLimitLastPriceNotFilled } from "./stop_limit_last_price";
 
 import { fundingMacro } from "./funding_macro"; // normal import
 
-// ✅ YENİ MAKROLAR EKLENDİ
 export const MACROS = [
   stopMarketMarkNotReached,
   stopMarketLossHigherThanExpectedMarkPrice,
@@ -21,17 +19,26 @@ export const MACROS = [
   stopLimitLastPriceNotFilled
 ];
 
-export const listMacros = () =>
-  MACROS.map(({ id, title, price_required, formConfig }) => ({
-    id,
-    title,
-    price_required,
-    formConfig
-  }));
+// ✅ GÜNCELLENDİ: Artık 'm.translations' objesini okur
+export const listMacros = (lang = 'en') =>
+  MACROS.map((m) => {
+    // 'translations' objesinden doğru dili (veya 'en' fallback) al
+    const t = m.translations?.[lang] || m.translations?.['en'];
+    
+    return {
+      id: m.id,
+      title: t?.title || m.title || m.id, // Çevrilmiş başlığı al
+      formConfig: t?.formConfig || [], // Çevrilmiş formu al
+      price_required: m.price_required
+    };
+  });
 
-export function renderMacro(macroId, inputs, prices, mode = "detailed") {
+// ✅ GÜNCELLENDİ: Artık 'm.translations' objesini okur
+export function renderMacro(macroId, inputs, prices, mode = "detailed", lang = 'en') {
+  // Funding makrosu özel ele alınır
   if (macroId === "funding_macro") {
-    const tpl = fundingMacro?.templates?.[mode]; // (Güvenlik için '?' eklendi)
+    const t = fundingMacro.translations[lang] || fundingMacro.translations['en'];
+    const tpl = t.templates?.[mode];
     if (!tpl)
       throw new Error(`Template for mode "${mode}" not found in funding_macro`);
     return tpl({ inputs, prices });
@@ -39,7 +46,11 @@ export function renderMacro(macroId, inputs, prices, mode = "detailed") {
 
   const m = MACROS.find((x) => x.id === macroId);
   if (!m) throw new Error("Macro not found");
-  const tpl = m.templates?.[mode];
-  if (!tpl) throw new Error(`Template for mode "${mode}" not found in macro`);
+
+  // 'translations' objesinden doğru şablonu al
+  const t = m.translations?.[lang] || m.translations?.['en'];
+  const tpl = t?.templates?.[mode];
+
+  if (!tpl) throw new Error(`Template for mode "${mode}" not found in macro "${macroId}"`);
   return tpl({ inputs, prices });
 }
