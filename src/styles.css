@@ -161,6 +161,34 @@ body {
   box-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
 }
 
+/* ==== Dil Seçici ==== */
+.lang-switcher {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.lang-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.lang-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+.lang-btn.active {
+  background: var(--accent-2);
+  color: #fff;
+  border-color: var(--accent-2);
+}
+
+
 /* ==== Price Highlight Cards ==== */
 .price-box {
   background: #0f172a;
