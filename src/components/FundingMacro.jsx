@@ -1,14 +1,18 @@
 // src/components/FundingMacro.jsx
 import React, { useState } from "react";
+// ✅ DÜZELTME: Import yolu düzeltildi (../)
 import { renderMacro } from "../macros";
 import {
+  // ✅ DÜZELTME: Import yolu düzeltildi (../)
   getNearestFunding,
   getMarkPriceClose1m,
   getAllSymbolPrecisions
 } from "../pricing";
+// ✅ DÜZELTME: Import yolu düzeltildi (../)
 import { truncateToPrecision } from "../macros/helpers.js";
 
-export default function FundingMacro() {
+// ✅ GÜNCELLENDİ: Propları alır
+export default function FundingMacro({ lang, uiStrings }) {
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [fundingTime, setFundingTime] = useState("");
   const [positionSize, setPositionSize] = useState("");
@@ -21,19 +25,29 @@ export default function FundingMacro() {
   const [rawMarkPrice, setRawMarkPrice] = useState(null);
   const [lastInputs, setLastInputs] = useState(null);
 
+  const t = uiStrings; // Çeviri metinleri
+
   async function handleGenerate() {
     setErr("");
     setResult("");
     setLoading(true);
+    
+    const errSym = lang === 'tr' ? 'Sembol gerekli.' : 'Symbol is required.';
+    const errTime = lang === 'tr' ? 'Funding Zamanı gerekli.' : 'Funding Time is required.';
+    const errSize = lang === 'tr' ? 'Pozisyon Büyüklüğü gerekli.' : 'Position Size is required.';
+    const errInt = lang === 'tr' ? 'Funding Aralığı (saat) gerekli.' : 'Funding Interval (hours) is required.';
+    const errRec = lang === 'tr' ? 'Bu zamana yakın bir funding kaydı bulunamadı.' : 'No funding record found near that time.';
+    const errMark = lang === 'tr' ? 'Mark price (1m) alınamadı' : 'Could not fetch mark price from 1m candles';
+
 
     try {
-      if (!symbol) throw new Error("Symbol is required.");
-      if (!fundingTime) throw new Error("Funding Time is required.");
-      if (!positionSize) throw new Error("Position Size is required.");
-      if (!fundingInterval) throw new Error("Funding Interval (hours) is required.");
+      if (!symbol) throw new Error(errSym);
+      if (!fundingTime) throw new Error(errTime);
+      if (!positionSize) throw new Error(errSize);
+      if (!fundingInterval) throw new Error(errInt);
 
       const rec = await getNearestFunding(symbol, fundingTime);
-      if (!rec) throw new Error("No funding record found near that time.");
+      if (!rec) throw new Error(errRec);
 
       const fundingRate = rec.funding_rate;
       let markPrice = rec.mark_price;
@@ -41,7 +55,7 @@ export default function FundingMacro() {
 
       if (!markPrice) {
         const closeData = await getMarkPriceClose1m(symbol, rec.funding_time_ms);
-        if (!closeData) throw new Error("Could not fetch mark price from 1m candles");
+        if (!closeData) throw new Error(errMark);
         markPrice = String(closeData.mark_price);
         fundingTimeStr = closeData.close_time;
       }
@@ -59,7 +73,8 @@ export default function FundingMacro() {
         qty_dp: 0
       };
 
-      const msg = renderMacro("funding_macro", inputs, {}, mode);
+      // ✅ GÜNCELLENDİ: 'lang' parametresi eklendi
+      const msg = renderMacro("funding_macro", inputs, {}, mode, lang);
       setResult(msg);
       setRawMarkPrice(markPrice);
       setLastInputs(inputs);
@@ -83,7 +98,8 @@ export default function FundingMacro() {
       const truncated = truncateToPrecision(rawMarkPrice, pricePrecision);
 
       const inputs2 = { ...lastInputs, mark_price: truncated };
-      const msg2 = renderMacro("funding_macro", inputs2, {}, mode);
+      // ✅ GÜNCELLENDİ: 'lang' parametresi eklendi
+      const msg2 = renderMacro("funding_macro", inputs2, {}, mode, lang);
 
       setResult(msg2);
       setLastInputs(inputs2);
@@ -97,16 +113,16 @@ export default function FundingMacro() {
     await navigator.clipboard.writeText(result);
     const btn = document.getElementById("funding-copy-btn");
     const old = btn.textContent;
-    btn.textContent = "Copied!";
-    setTimeout(() => (btn.textContent = old), 1500);
+    btn.textContent = t.copied;
+    setTimeout(() => (btn.textContent = t.copy), 1500);
   }
 
   return (
     <div className="panel">
-      <h3>💰 Funding Macro</h3>
+      <h3>{t.fundingTitle}</h3>
       <div className="grid">
         <div className="col-6">
-          <label className="label">Symbol</label>
+          <label className="label">{t.fundingSymbol}</label>
           <input
             className="input"
             value={symbol}
@@ -116,7 +132,7 @@ export default function FundingMacro() {
         </div>
 
         <div className="col-6">
-          <label className="label">Funding Time (UTC)</label>
+          <label className="label">{t.fundingTime}</label>
           <input
             className="input"
             placeholder="YYYY-MM-DD HH:MM:SS"
@@ -126,7 +142,7 @@ export default function FundingMacro() {
         </div>
 
         <div className="col-6">
-          <label className="label">Position Size</label>
+          <label className="label">{t.fundingPosSize}</label>
           <input
             className="input"
             placeholder="e.g. 0.05"
@@ -136,7 +152,7 @@ export default function FundingMacro() {
         </div>
 
         <div className="col-6">
-          <label className="label">Funding Interval (hours)</label>
+          <label className="label">{t.fundingInterval}</label>
           <input
             className="input"
             placeholder="e.g. 1, 2, 4, 8"
@@ -146,20 +162,20 @@ export default function FundingMacro() {
         </div>
 
         <div className="col-6">
-          <label className="label">Output Mode</label>
+          <label className="label">{t.modeLabel}</label>
           <select
             className="select"
             value={mode}
             onChange={(e) => setMode(e.target.value)}
           >
-            <option value="detailed">Detailed</option>
-            <option value="summary">Summary</option>
+            <option value="detailed">{t.modeDetailed}</option>
+            <option value="summary">{t.modeSummary}</option>
           </select>
         </div>
 
         <div className="col-12" style={{ marginTop: 12 }}>
           <button className="btn" onClick={handleGenerate} disabled={loading}>
-            {loading ? "Loading..." : "✨ Generate Funding Macro"}
+            {loading ? t.fundingLoading : t.fundingButton}
           </button>
         </div>
 
@@ -170,7 +186,7 @@ export default function FundingMacro() {
             onClick={handleCopy}
             disabled={!result}
           >
-            Copy
+            {t.copy}
           </button>
 
           <button
@@ -179,20 +195,20 @@ export default function FundingMacro() {
             disabled={!result}
             title="Apply exchangeInfo.pricePrecision (truncate, no rounding)"
           >
-            Apply Precision
+            {t.fundingApply}
           </button>
         </div>
       </div>
 
       {err && (
         <div className="helper" style={{ color: "#ff6b6b", marginTop: 10 }}>
-          <strong>Error:</strong> {err}
+          <strong>{t.error}</strong> {err}
         </div>
       )}
 
       {result && (
         <div style={{ marginTop: 16 }}>
-          <label className="label">Generated Funding Macro</label>
+          <label className="label">{t.resultLabel}</label>
           <textarea className="textarea" rows="14" value={result} readOnly />
         </div>
       )}
