@@ -16,37 +16,128 @@ const initialInputs = {
   side: "SELL",
   trigger_type: "MARK",
   trigger_price: "",
-  limit_price: "", // Stop-Limit için
+  limit_price: "",
   executed_price: "",
   placed_at_utc: "",
-  triggered_at_utc: "", // Gerçekleşen emirler (SL/TP) ve Stop-Limit tetiklenme zamanı için
-  final_status_utc: "", // Gerçekleşmeyen emirler (Not Reached, Stop-Limit) için
+  triggered_at_utc: "",
+  final_status_utc: "",
   status: "OPEN"
 };
 
+// Arayüz metinleri
+const uiStrings = {
+  en: {
+    badge: "Binance 1m OHLC",
+    tabMacro: "Macro Generator",
+    tabLookup: "Price Lookup",
+    tabFunding: "Funding Macro",
+    macroLabel: "Macro",
+    modeLabel: "Output Mode",
+    modeDetailed: "Detailed / Professional",
+    modeSummary: "Summary / Simplified",
+    generate: "Generate",
+    generating: "Generating...",
+    copy: "Copy",
+    copied: "Copied! (Markdown-ready for chat)",
+    error: "Error:",
+    errorTip: "Tip: If you see 451 or CORS errors, set a corporate CORS proxy in src/pricing.js (PROXY constant).",
+    resultLabel: "Result",
+    // Price Lookup
+    lookupTitle: "Price Lookup Tool",
+    lookupSymbol: "Symbol",
+    lookupMode: "Mode",
+    lookupModeTrigger: "Trigger Minute (Mark+Last)",
+    lookupModeRange: "Range (High/Low)",
+    lookupModeLast1s: "Last Price 1s (max 7d)",
+    lookupAt: "At (UTC)",
+    lookupFrom: "From (UTC)",
+    lookupTo: "To (UTC)",
+    lookupDateTime: "DateTime (UTC)",
+    lookupButton: "Lookup",
+    // Funding
+    fundingTitle: "Funding Macro",
+    fundingSymbol: "Symbol",
+    fundingTime: "Funding Time (UTC)",
+    fundingPosSize: "Position Size",
+    fundingInterval: "Funding Interval (hours)",
+    fundingButton: "✨ Generate Funding Macro",
+    fundingLoading: "Loading...",
+    fundingApply: "Apply Precision"
+  },
+  tr: {
+    badge: "Binance 1m OHLC",
+    tabMacro: "Makro Oluşturucu",
+    tabLookup: "Fiyat Sorgulama",
+    tabFunding: "Funding Makrosu",
+    macroLabel: "Makro",
+    modeLabel: "Çıktı Modu",
+    modeDetailed: "Detaylı / Profesyonel",
+    modeSummary: "Özet / Basitleştirilmiş",
+    generate: "Oluştur",
+    generating: "Oluşturuluyor...",
+    copy: "Kopyala",
+    copied: "Kopyalandı! (Sohbete hazır)",
+    error: "Hata:",
+    errorTip: "İpucu: 451 veya CORS hatası alırsanız, src/pricing.js dosyasındaki PROXY sabitine bir proxy adresi girin.",
+    resultLabel: "Sonuç",
+    // Price Lookup
+    lookupTitle: "Fiyat Sorgulama Aracı",
+    lookupSymbol: "Sembol",
+    lookupMode: "Mod",
+    lookupModeTrigger: "Tetiklenme Dakikası (Mark Price + Last Price)",
+    lookupModeRange: "Aralık (Yüksek/Düşük)",
+    lookupModeLast1s: "Last Price 1s (max 7g)",
+    lookupAt: "Tarih/Zaman (UTC)",
+    lookupFrom: "Başlangıç (UTC)",
+    lookupTo: "Bitiş (UTC)",
+    lookupDateTime: "Tarih/Zaman (UTC)",
+    lookupButton: "Sorgula",
+    // Funding
+    fundingTitle: "💰 Funding Makrosu",
+    fundingSymbol: "Sembol",
+    fundingTime: "Funding Zamanı (UTC)",
+    fundingPosSize: "Pozisyon Büyüklüğü",
+    fundingInterval: "Funding Aralığı (saat)",
+    fundingButton: "✨ Funding Makrosu Oluştur",
+    fundingLoading: "Yükleniyor...",
+    fundingApply: "Kesinlik Uygula"
+  }
+};
+
 // Dinamik zaman damgası etiketleri
-function getDynamicTimestampLabel(fieldName, status) {
-  if (fieldName === "final_status_utc") {
-    switch (status) {
-      case "OPEN":
-        return "To (UTC, YYYY-MM-DD HH:MM:SS)";
-      case "CANCELED":
-        return "Canceled At (UTC, YYYY-MM-DD HH:MM:SS)";
-      case "EXPIRED":
-        return "Expired At (UTC, YYYY-MM-DD HH:MM:SS)";
-      default:
-        return "Final Status At (UTC)";
+function getDynamicTimestampLabel(fieldName, status, lang, macroId) {
+  const labels = {
+    en: {
+      OPEN: "To (UTC, YYYY-MM-DD HH:MM:SS)",
+      CANCELED: "Canceled At (UTC, YYYY-MM-DD HH:MM:SS)",
+      EXPIRED: "Expired At (UTC, YYYY-MM-DD HH:MM:SS)",
+      TRIGGERED: "Triggered At (UTC, YYYY-MM-DD HH:MM:SS)",
+      EXECUTED: "Executed At (UTC, YYYY-MM-DD HH:MM:SS)",
+      FINAL_STATUS: "Final Status At (Open/Canceled/Expired)",
+      TRIGGER_HIT: "Triggered At (Stop Price Hit)"
+    },
+    tr: {
+      OPEN: "Bitiş (UTC, YYYY-AA-GG SS:DD:ss)",
+      CANCELED: "İptal Zamanı (UTC, YYYY-AA-GG SS:DD:ss)",
+      EXPIRED: "Süre Doldu (UTC, YYYY-AA-GG SS:DD:ss)",
+      TRIGGERED: "Tetiklenme Zamanı (UTC, YYYY-AA-GG SS:DD:ss)",
+      EXECUTED: "Gerçekleşme Zamanı (UTC, YYYY-AA-GG SS:DD:ss)",
+      FINAL_STATUS: "Son Durum Zamanı (Açık/İptal/Süresi Doldu)",
+      TRIGGER_HIT: "Tetiklenme Zamanı (Stop Fiyatına Ulaştı)"
     }
+  };
+  const l = labels[lang] || labels['en'];
+
+  if (fieldName === "final_status_utc") {
+    return l[status] || l.FINAL_STATUS;
   }
-  // (fieldName === 'triggered_at_utc')
-  switch (status) {
-    case "EXECUTED":
-      return "Executed At (UTC, YYYY-MM-DD HH:MM:SS)";
-    case "TRIGGERED":
-      return "Triggered At (UTC, YYYY-MM-DD HH:MM:SS)";
-    default:
-      return "Triggered/Executed At (UTC)";
+  if (fieldName === "triggered_at_utc") {
+    if (macroId.includes("stop_limit")) {
+        return l.TRIGGER_HIT;
+    }
+    return l[status] || l.EXECUTED;
   }
+  return "Timestamp (UTC)";
 }
 
 export default function App() {
@@ -59,10 +150,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const outRef = useRef(null);
+  const [lang, setLang] = useState('en');
+
+  const t = uiStrings[lang] || uiStrings['en'];
 
   useEffect(() => {
-    setMacros(listMacros());
-  }, []);
+    setMacros(listMacros(lang));
+  }, [lang]);
 
   const activeMacro = useMemo(
     () => macros.find((m) => m.id === macroId),
@@ -75,7 +169,6 @@ export default function App() {
     }
   }, [macros, macroId]);
 
-  // Makro değiştikçe, formun varsayılan değerlerini ayarla
   useEffect(() => {
     if (!activeMacro) return;
     const newDefaults = {};
@@ -100,41 +193,33 @@ export default function App() {
     setResult("");
 
     let effectiveInputs = { ...inputs };
-    
-    // Hangi makronun hangi zaman damgasını kullandığını belirle
     const usesFinalStatusTime = macroId.includes("not_reached") || macroId.includes("stop_limit");
-    const usesTriggerTime = !usesFinalStatusTime; // SL/TP Slippage makroları
-
     let rangeEndTime = inputs.final_status_utc;
     let triggerCandleTime = inputs.triggered_at_utc;
 
-    // 'OPEN' durumu için son zamanı ayarla
     if (inputs.status === "OPEN") {
       const now = new Date().toISOString().slice(0, 19).replace("T", " ");
       if (usesFinalStatusTime) {
         rangeEndTime = now;
         effectiveInputs.final_status_utc = now;
       }
+    } else if (usesFinalStatusTime) {
+       rangeEndTime = inputs.final_status_utc;
     }
 
     try {
       if (!activeMacro) throw new Error("Select a macro.");
       if (!effectiveInputs.symbol) throw new Error("Symbol is required.");
 
-      // Zaman damgası gerekliliklerini doğrula
       if (usesFinalStatusTime && !rangeEndTime) {
          throw new Error(
           `Final Status At (Open/Canceled/Expired) is required. Format: YYYY-MM-DD HH:MM:SS`
         );
       }
-      if (usesTriggerTime && !triggerCandleTime) {
+      const needsTriggerTime = !usesFinalStatusTime || macroId.includes("stop_limit");
+      if (needsTriggerTime && !triggerCandleTime) {
            throw new Error(
           `Triggered/Executed At is required. Format: YYYY-MM-DD HH:MM:SS`
-        );
-      }
-      if (macroId.includes("stop_limit") && !inputs.triggered_at_utc) {
-         throw new Error(
-          `Triggered At (Stop Price Hit) is required for Stop-Limit. Format: YYYY-MM-DD HH:MM:SS`
         );
       }
        if (macroId.includes("not_reached") && !inputs.placed_at_utc) {
@@ -143,44 +228,37 @@ export default function App() {
         );
       }
 
-
       let prices = {};
       const priceSource = activeMacro.price_required;
 
-      // 'Not Reached' makrosu bir fiyat aralığı (range) çeker
       if (macroId.includes("not_reached")) {
         const range = await getRangeHighLow(
           effectiveInputs.symbol,
           effectiveInputs.placed_at_utc,
-          rangeEndTime // 'placed_at' ile 'final_status' arası
+          rangeEndTime
         );
         if (!range) throw new Error("No data found for this range.");
         prices = range;
       } else {
-        // Diğer tüm makrolar (SL, TP, Stop-Limit) tetiklenme anındaki (triggered_at_utc) 1m mumunu çeker
         const { mark, last } = await getTriggerMinuteCandles(
           effectiveInputs.symbol,
-          inputs.triggered_at_utc // Tetiklenme anı mumu
+          inputs.triggered_at_utc
         );
         const tMinute = new Date(msMinuteStartUTC(inputs.triggered_at_utc))
           .toISOString()
           .slice(0, 16)
           .replace("T", " ");
 
-        // ✅ N/A DÜZELTMESİ:
-        // Fiyatları her zaman {mark, last} objeleri olarak paketle,
-        // makronun 'price_required' ihtiyacına göre.
         if (priceSource === "both") {
           prices = { triggered_minute: tMinute, mark, last };
         } else if (priceSource === "last") {
           prices = { triggered_minute: tMinute, last };
         } else {
-          // Güvenli varsayılan (veya hata)
           prices = { triggered_minute: tMinute, mark, last };
         }
       }
 
-      const msg = renderMacro(macroId, effectiveInputs, prices, mode);
+      const msg = renderMacro(macroId, effectiveInputs, prices, mode, lang);
       setResult(msg);
       setTimeout(
         () => outRef.current?.scrollIntoView({ behavior: "smooth" }),
@@ -198,12 +276,10 @@ export default function App() {
     await navigator.clipboard.writeText(result);
     const btn = document.getElementById("copy-btn");
     const old = btn.textContent;
-    btn.textContent = "Copied! (Markdown-ready for chat)";
-    setTimeout(() => (btn.textContent = old), 1500);
+    btn.textContent = t.copied;
+    setTimeout(() => (btn.textContent = t.copy), 1500);
   }
 
-
-  // Formu dinamik olarak render et
   const renderFormField = (field) => {
     let value = inputs[field.name] ?? "";
     let label = field.label;
@@ -211,26 +287,20 @@ export default function App() {
     let isDisabled = field.locked;
     let helperText = field.helper;
 
-    // ✅ YENİ: İki dinamik zaman damgası alanını da ele al
-    
-    // 1. Gerçekleşen (Executed) emirler için
-    if (field.name === "triggered_at_utc" && !macroId.includes("stop_limit")) {
-      label = getDynamicTimestampLabel(field.name, inputs.status);
+    if (field.name === "triggered_at_utc" || field.name === "final_status_utc") {
+      label = getDynamicTimestampLabel(field.name, inputs.status, lang, macroId);
     }
     
-    // 2. Gerçekleşmeyen (Not Filled) emirler için
     if (field.name === "final_status_utc") {
-      label = getDynamicTimestampLabel(field.name, inputs.status);
       if (inputs.status === "OPEN") {
         value = "(Auto-populates on Generate)";
         isDisabled = true;
       }
       helperText = (inputs.status === "OPEN")
-        ? "For 'OPEN' orders, we check from 'Placed At' to the current time."
-        : `Enter the time the order was ${inputs.status.toLowerCase()}.`;
+        ? (lang === 'tr' ? "'AÇIK' emirler için 'Verilme Zamanı'ndan şu anki zamana kadar kontrol edilir." : "For 'OPEN' orders, we check from 'Placed At' to the current time.")
+        : (lang === 'tr' ? `Emrin ${inputs.status.toLowerCase()} olduğu zamanı girin.` : `Enter the time the order was ${inputs.status.toLowerCase()}.`);
     }
 
-    // Select (Dropdown)
     if (field.type === "select") {
       return (
         <div className={`col-${field.col || 6}`} key={field.name}>
@@ -251,7 +321,6 @@ export default function App() {
       );
     }
 
-    // Text (Input)
     return (
       <div className={`col-${field.col || 6}`} key={field.name}>
         <label className="label">{label}</label>
@@ -279,26 +348,42 @@ export default function App() {
     <div className="container">
       <div className="header">
         <div className="brand">
-          Order Macro App <span className="badge">Binance 1m OHLC</span>
+          Order Macro App <span className="badge">{t.badge}</span>
         </div>
         <div className="tabs">
           <button
             className={activeTab === "macros" ? "tab active" : "tab"}
             onClick={() => setActiveTab("macros")}
           >
-            Macro Generator
+            {t.tabMacro}
           </button>
           <button
             className={activeTab === "lookup" ? "tab active" : "tab"}
             onClick={() => setActiveTab("lookup")}
           >
-            Price Lookup
+            {t.tabLookup}
           </button>
           <button
             className={activeTab === "funding" ? "tab active" : "tab"}
             onClick={() => setActiveTab("funding")}
           >
-            Funding Macro
+            {t.tabFunding}
+          </button>
+        </div>
+        <div className="lang-switcher">
+          <button 
+            className={`lang-btn ${lang === 'en' ? 'active' : ''}`} 
+            onClick={() => setLang('en')}
+            title="Switch to English"
+          >
+            EN
+          </button>
+          <button 
+            className={`lang-btn ${lang === 'tr' ? 'active' : ''}`}
+            onClick={() => setLang('tr')}
+            title="Türkçe'ye geç"
+          >
+            TR
           </button>
         </div>
       </div>
@@ -307,7 +392,7 @@ export default function App() {
         <div className="panel">
           <div className="grid">
             <div className="col-12">
-              <label className="label">Macro</label>
+              <label className="label">{t.macroLabel}</label>
               <select
                 className="select"
                 value={macroId}
@@ -322,14 +407,14 @@ export default function App() {
             </div>
 
             <div className="col-12">
-              <label className="label">Output Mode</label>
+              <label className="label">{t.modeLabel}</label>
               <select
                 className="select"
                 value={mode}
                 onChange={(e) => setMode(e.target.value)}
               >
-                <option value="detailed">Detailed / Professional</option>
-                <option value="summary">Summary / Simplified</option>
+                <option value="detailed">{t.modeDetailed}</option>
+                <option value="summary">{t.modeSummary}</option>
               </select>
             </div>
 
@@ -342,7 +427,7 @@ export default function App() {
                 onClick={handleGenerate}
                 disabled={loading}
               >
-                {loading ? "Generating..." : "Generate"}
+                {loading ? t.generating : t.generate}
               </button>
             </div>
 
@@ -353,7 +438,7 @@ export default function App() {
                 onClick={handleCopy}
                 disabled={!result}
               >
-                Copy
+                {t.copy}
               </button>
             </div>
           </div>
@@ -362,26 +447,24 @@ export default function App() {
 
           {err && (
             <div className="helper" style={{ color: "#ffb4b4" }}>
-              <strong>Error:</strong> {err}
+              <strong>{t.error}</strong> {err}
               <div className="helper" style={{ marginTop: 6 }}>
-                Tip: If you see <span className="kbd">451</span> or CORS errors,
-                set a corporate CORS proxy in{" "}
-                <span className="kbd">src/pricing.js</span> (PROXY constant).
+                {t.errorTip}
               </div>
             </div>
           )}
 
           <div ref={outRef} className="grid" style={{ marginTop: 10 }}>
             <div className="col-12">
-              <label className="label">Result</label>
+              <label className="label">{t.resultLabel}</label>
               <textarea className="textarea" value={result} readOnly />
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === "lookup" && <PriceLookup />}
-      {activeTab === "funding" && <FundingMacro />}
+      {activeTab === "lookup" && <PriceLookup lang={lang} uiStrings={t} />}
+      {activeTab === "funding" && <FundingMacro lang={lang} uiStrings={t} />}
     </div>
   );
 }
