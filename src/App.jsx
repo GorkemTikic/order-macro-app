@@ -388,7 +388,15 @@ export default function App() {
         </div>
       </div>
 
-      {activeTab === "macros" && (
+      {/* DÜZELTME: 
+        Sekme içeriğini (component) gizlemek için && (koşullu render) yerine 
+        CSS (display: none) kullanıldı.
+        Bu, sekme değiştirildiğinde component'lerin "unmount" olmasını engeller 
+        ve iç state'lerini (form girdilerini) korur.
+      */}
+
+      {/* Makro Oluşturucu Paneli */}
+      <div style={{ display: activeTab === "macros" ? "block" : "none" }}>
         <div className="panel">
           <div className="grid">
             <div className="col-12">
@@ -461,10 +469,17 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {activeTab === "lookup" && <PriceLookup lang={lang} uiStrings={t} />}
-      {activeTab === "funding" && <FundingMacro lang={lang} uiStrings={t} />}
+      {/* Fiyat Sorgulama Paneli */}
+      <div style={{ display: activeTab === "lookup" ? "block" : "none" }}>
+        <PriceLookup lang={lang} uiStrings={t} />
+      </div>
+
+      {/* Funding Makrosu Paneli */}
+      <div style={{ display: activeTab === "funding" ? "block" : "none" }}>
+        <FundingMacro lang={lang} uiStrings={t} />
+      </div>
     </div>
   );
 }
