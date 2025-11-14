@@ -62,7 +62,16 @@ const uiStrings = {
     fundingInterval: "Funding Interval (hours)",
     fundingButton: "✨ Generate Funding Macro",
     fundingLoading: "Loading...",
-    fundingApply: "Apply Precision"
+    fundingApply: "Apply Precision",
+    // Modal
+    pasteModalTitle: "Paste Order Grid Data",
+    pasteModalButton: "✨ Parse & Auto-fill",
+    // ✅ GÜNCELLENDİ (Yardımcı Metin)
+    pasteModalHelper: "Paste 26 or 27 lines of *values only* (detects if 'Liquidation' is empty).",
+    pasteButtonLabel: "📋 Paste Grid Data",
+    pasteGridTitle: "Title (Fixed)",
+    pasteGridValue: "Value (Pasted)",
+    pasteGridPreview: "Data Mapping Preview"
   },
   tr: {
     badge: "Binance 1m OHLC",
@@ -100,9 +109,50 @@ const uiStrings = {
     fundingInterval: "Funding Aralığı (saat)",
     fundingButton: "✨ Funding Makrosu Oluştur",
     fundingLoading: "Yükleniyor...",
-    fundingApply: "Kesinlik Uygula"
+    fundingApply: "Kesinlik Uygula",
+    // Modal
+    pasteModalTitle: "Emir Verisini Yapıştır",
+    pasteModalButton: "✨ Ayrıştır & Doldur",
+    // ✅ GÜNCELLENDİ (Yardımcı Metin)
+    pasteModalHelper: "26 veya 27 satırlık *sadece değerleri* yapıştırın ('Liquidation' boş olsa da algılar).",
+    pasteButtonLabel: "📋 Emir Verisini Yapıştır",
+    pasteGridTitle: "Başlık (Sabit)",
+    pasteGridValue: "Değer (Yapıştırılan)",
+    pasteGridPreview: "Veri Eşleştirme Önizlemesi"
   }
 };
+
+// Başlık şablonu (27 başlık)
+const GRID_KEYS = [
+  "Future UID",
+  "Order ID",
+  "Order Update Time (UTC)",
+  "Symbol",
+  "Side",
+  "Price",
+  "Orig. Qty.",
+  "Executed Qty.",
+  "Exec. Quote Qty.",
+  "Position Side",
+  "Status",
+  "Expired Reason",
+  "Time In Force",
+  "Expire Time",
+  "Type",
+  "Working Type",
+  "Stop Price",
+  "Liquidation", // 18. Başlık (index 17)
+  "ADL",
+  "ReduceOnly",
+  "Client Order ID",
+  "Activate Price",
+  "Price Rate",
+  "Price Protect",
+  "Price Match",
+  "Self Protection Mode",
+  "Order Place Time(UTC)" // 27. Başlık
+];
+
 
 // Dinamik zaman damgası etiketleri
 function getDynamicTimestampLabel(fieldName, status, lang, macroId) {
@@ -140,6 +190,125 @@ function getDynamicTimestampLabel(fieldName, status, lang, macroId) {
   return "Timestamp (UTC)";
 }
 
+/**
+ * ✅ GÜNCELLENDİ: Grid verisini (kaymış mantığa göre) eşleştiren fonksiyon
+ * Artık 26 VEYA 27 satırı akıllıca algılıyor.
+ */
+function mapGridData(rawText) {
+  const values = rawText.split('\n').map(v => v.trim()).filter(v => v);
+  const dataMap = {};
+
+  if (values.length === 0) return dataMap;
+
+  if (values.length === 27) {
+    // --- Durum 1: Liquidation "Yes" (27 satır) ---
+    // Tüm veriler tam, 1'e 1 eşleştir
+    for (let i = 0; i < GRID_KEYS.length; i++) {
+      dataMap[GRID_KEYS[i]] = values[i] || "";
+    }
+  } else if (values.length === 26) {
+    // --- Durum 2: Liquidation boş (26 satır) ---
+    // 1. İlk 17 veriyi (0-16) doğrudan eşleştir (Stop Price'a kadar)
+    for (let i = 0; i <= 16; i++) {
+      dataMap[GRID_KEYS[i]] = values[i] || "";
+    }
+    
+    // 2. 18. başlığı (Liquidation) atla
+    dataMap[GRID_KEYS[17]] = "N/A (Boşluk Atlandı)"; // GRID_KEYS[17] = "Liquidation"
+
+    // 3. Kalan 9 veriyi (17-25) kaydırarak eşleştir
+    // values[17] (ADL) -> keys[18] (ADL)
+    // ...
+    // values[25] (Place Time) -> keys[26] (Place Time)
+    for (let i = 17; i <= 25; i++) {
+      if (values[i] !== undefined) {
+          dataMap[GRID_KEYS[i + 1]] = values[i];
+      }
+    }
+  } else {
+    // --- Durum 3: Geçersiz veri ---
+    throw new Error(`Geçersiz satır sayısı. 26 veya 27 satır bekleniyordu, ${values.length} bulundu.`);
+  }
+
+  return dataMap;
+}
+
+/**
+ * Eşleşen veriyi form state'ine dönüştüren fonksiyon
+ * (Bu fonksiyonda değişiklik yok, 'mapGridData' düzeltmesi yeterli)
+ */
+function parseDataMap(dataMap) {
+  const parsed = {};
+  
+  // 1. Order ID
+  if (dataMap['Order ID']) parsed.order_id = dataMap['Order ID'];
+  
+  // 2. Symbol
+  if (dataMap['Symbol']) parsed.symbol = dataMap['Symbol'];
+  
+  // 3. Side
+  if (dataMap['Side']) parsed.side = dataMap['Side'].toUpperCase();
+  
+  // 4. Order Place Time(UTC) -> placed_at_utc
+  if (dataMap['Order Place Time(UTC)']) parsed.placed_at_utc = dataMap['Order Place Time(UTC)'];
+
+  // 5. Status
+  if (dataMap['Status']) {
+    const status = dataMap['Status'].toUpperCase();
+    if (status === 'FILLED') parsed.status = 'EXECUTED';
+    else if (status === 'CANCELED') parsed.status = 'CANCELED';
+    else if (status === 'OPEN') parsed.status = 'OPEN';
+    else parsed.status = status;
+  }
+
+  // 6. Working Type -> trigger_type
+  if (dataMap['Working Type']) {
+    const wt = dataMap['Working Type'].toUpperCase();
+    if (wt === 'MARK_PRICE') parsed.trigger_type = 'MARK';
+    else if (wt === 'LAST_PRICE') parsed.trigger_type = 'LAST';
+    else parsed.trigger_type = wt;
+  }
+
+  // 7. Order Update Time (UTC) -> [status_time]
+  if (dataMap['Order Update Time (UTC)']) {
+    const updateTime = dataMap['Order Update Time (UTC)'];
+    const currentStatus = parsed.status || 'OPEN';
+    
+    if (currentStatus === 'EXECUTED') {
+      parsed.executed_at_utc = updateTime; // Bu, handleParseAndFill içinde 'triggered_at_utc'ye yönlendirilecek
+      parsed.final_status_utc = updateTime; 
+    } else if (currentStatus === 'CANCELED') {
+      parsed.final_status_utc = updateTime; 
+    } else if (currentStatus === 'EXPIRED') {
+      parsed.final_status_utc = updateTime;
+    }
+  }
+
+  // 8. Stop Price (Tricky Part) -> trigger_price AND triggered_at_utc
+  if (dataMap['Stop Price']) {
+    const stopPriceParts = dataMap['Stop Price'].split('|').map(p => p.trim());
+    const price = parseFloat(stopPriceParts[0]);
+    
+    if (!isNaN(price) && price > 0) {
+      parsed.trigger_price = stopPriceParts[0];
+    }
+    if (stopPriceParts.length > 1 && stopPriceParts[1].includes('-')) {
+      parsed.triggered_at_utc = stopPriceParts[1];
+    }
+  }
+  
+  // 9. Price -> limit_price (Stop-Limit emirleri için)
+  if (dataMap['Price']) {
+       const price = parseFloat(dataMap['Price']);
+       if (!isNaN(price) && price > 0) {
+          parsed.limit_price = dataMap['Price'];
+       }
+  }
+
+  return parsed;
+}
+
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("macros");
   const [macros, setMacros] = useState([]);
@@ -152,11 +321,31 @@ export default function App() {
   const outRef = useRef(null);
   const [lang, setLang] = useState('en');
 
+  // Modal state'leri
+  const [showParseModal, setShowParseModal] = useState(false);
+  const [pasteData, setPasteData] = useState("");
+  const [parseError, setParseError] = useState("");
+
   const t = uiStrings[lang] || uiStrings['en'];
 
   useEffect(() => {
     setMacros(listMacros(lang));
   }, [lang]);
+
+  // Modal'daki önizleme tablosu için veri
+  const previewDataMap = useMemo(() => {
+    try {
+      // Metin yapıştırıldıkça hatayı temizle
+      setParseError("");
+      return mapGridData(pasteData);
+    } catch (e) {
+      // Sadece 'Eksik veri' hatasını göster
+      if (pasteData.trim().length > 0) {
+        setParseError(e.message);
+      }
+      return {};
+    }
+  }, [pasteData]);
 
   const activeMacro = useMemo(
     () => macros.find((m) => m.id === macroId),
@@ -180,7 +369,7 @@ export default function App() {
     setInputs((prev) => ({
       ...initialInputs,
       ...newDefaults,
-      symbol: prev.symbol,
+      symbol: prev.symbol, 
       order_id: prev.order_id
     }));
   }, [activeMacro]);
@@ -280,6 +469,61 @@ export default function App() {
     setTimeout(() => (btn.textContent = t.copy), 1500);
   }
 
+  // Modal'ı açan fonksiyon
+  function openParseModal() {
+    setPasteData("");
+    setParseError("");
+    setShowParseModal(true);
+  }
+
+  // Ayrıştırmayı tetikleyen fonksiyon
+  function handleParseAndFill() {
+    setParseError("");
+    try {
+      // 1. Eşleşen haritayı (previewDataMap) al
+      const dataMap = previewDataMap;
+      if (Object.keys(dataMap).length < 27) {
+         throw new Error("Lütfen veriyi yapıştırın.");
+      }
+      
+      // 2. Haritayı form state'ine dönüştür
+      const parsedData = parseDataMap(dataMap);
+      
+      // 3. Formu doldur
+      setInputs(prev => {
+        const newDefaults = {};
+        if (activeMacro) {
+          activeMacro.formConfig.forEach((field) => {
+            if (field.defaultValue !== undefined) {
+              newDefaults[field.name] = field.defaultValue;
+            }
+          });
+        }
+        
+        const baseInputs = { ...initialInputs, ...newDefaults };
+        const finalParsed = { ...parsedData };
+        
+        // Mantık: 'Stop Price'dan gelen tetiklenme zamanı ('triggered_at_utc')
+        // 'Order Update Time'dan gelen 'executed_at_utc'den daha önceliklidir.
+        if (finalParsed.status === 'EXECUTED' && finalParsed.executed_at_utc && !finalParsed.triggered_at_utc) {
+           finalParsed.triggered_at_utc = finalParsed.executed_at_utc;
+        }
+
+        return {
+          ...baseInputs, 
+          ...finalParsed
+        };
+      });
+      
+      setShowParseModal(false);
+      setPasteData("");
+
+    } catch (e) {
+      setParseError(e.message);
+    }
+  }
+
+
   const renderFormField = (field) => {
     let value = inputs[field.name] ?? "";
     let label = field.label;
@@ -343,9 +587,95 @@ export default function App() {
       </div>
     );
   };
+  
+  // Modal içindeki tabloyu oluşturur
+  const renderPreviewGrid = () => {
+     if (pasteData.trim().length === 0) return null;
+     
+     // Forma aktarılacak anahtar başlıklar
+     const keysToShow = [
+       "Order ID", "Symbol", "Side", "Status", "Working Type", 
+       "Price", "Stop Price", "Order Place Time(UTC)", "Order Update Time (UTC)"
+     ];
+     
+     // Önizlemede vurgulanacak anahtar başlıklar
+     const highlightRows = {
+       "Order Place Time(UTC)": true,
+       "Stop Price": true,
+       "Order ID": true,
+       "Symbol": true,
+       "Liquidation": true
+     };
+
+     return (
+       <div className="modal-preview-grid">
+         <label className="label">{t.pasteGridPreview}</label>
+         <table>
+           <thead>
+             <tr>
+               <th>{t.pasteGridTitle}</th>
+               <th>{t.pasteGridValue}</th>
+             </tr>
+           </thead>
+           <tbody>
+             {GRID_KEYS.map((key) => (
+               <tr 
+                 key={key} 
+                 className={highlightRows[key] ? 'highlight' : ''}
+                 title={keysToShow.includes(key) ? "Bu veri forma aktarılacak" : "Bu veri forma aktarılmayacak"}
+                 style={{ opacity: keysToShow.includes(key) || key === "Liquidation" ? 1 : 0.4 }}
+               >
+                 <td>{key}</td>
+                 <td>{previewDataMap[key] || ""}</td>
+               </tr>
+             ))}
+           </tbody>
+         </table>
+       </div>
+     );
+  };
+
 
   return (
     <div className="container">
+      {/* Grid Ayrıştırma Modalı */}
+      {showParseModal && (
+        <div className="modal-overlay" onClick={() => setShowParseModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setShowParseModal(false)}>×</button>
+            <h3>{t.pasteModalTitle}</h3>
+            <p className="helper">{t.pasteModalHelper}</p>
+            
+            <div className="modal-grid">
+              <div className="modal-grid-col">
+                <textarea
+                  className="textarea"
+                  rows="15"
+                  value={pasteData}
+                  onChange={(e) => {
+                    setPasteData(e.target.value);
+                  }}
+                  placeholder="Buraya yapıştırın..."
+                />
+              </div>
+              <div className="modal-grid-col">
+                {/* Önizleme Tablosu */}
+                {renderPreviewGrid()}
+              </div>
+            </div>
+            
+            {parseError && (
+              <div className="helper" style={{ color: "#ffb4b4", marginTop: 10 }}>
+                <strong>{t.error}</strong> {parseError}
+              </div>
+            )}
+            <button className="btn" style={{ marginTop: 12 }} onClick={handleParseAndFill}>
+              {t.pasteModalButton}
+            </button>
+          </div>
+        </div>
+      )}
+    
       <div className="header">
         <div className="brand">
           Order Macro App <span className="badge">{t.badge}</span>
@@ -388,16 +718,18 @@ export default function App() {
         </div>
       </div>
 
-      {/* DÜZELTME: 
-        Sekme içeriğini (component) gizlemek için && (koşullu render) yerine 
-        CSS (display: none) kullanıldı.
-        Bu, sekme değiştirildiğinde component'lerin "unmount" olmasını engeller 
-        ve iç state'lerini (form girdilerini) korur.
-      */}
-
       {/* Makro Oluşturucu Paneli */}
       <div style={{ display: activeTab === "macros" ? "block" : "none" }}>
         <div className="panel">
+          
+          {/* Grid Verisi Yapıştırma Butonu */}
+          <div className="col-12" style={{marginBottom: 16}}>
+            <button className="btn secondary" onClick={openParseModal}>
+              {t.pasteButtonLabel}
+            </button>
+          </div>
+          <div className="hr" style={{margin: "0 0 18px 0"}}/>
+
           <div className="grid">
             <div className="col-12">
               <label className="label">{t.macroLabel}</label>
